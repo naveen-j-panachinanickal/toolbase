@@ -16,7 +16,7 @@ __pycache__
 
 # testing
 /coverage
-
+/public/imgly
 # next.js
 /.next/
 /out/
