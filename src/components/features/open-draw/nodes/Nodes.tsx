@@ -12,6 +12,7 @@ interface CustomNodeProps extends NodeProps {
 export function EditableLabel({ id, label, className = '', style = {} }: { id: string, label: string, className?: string, style?: React.CSSProperties }) {
     const { updateNodeData } = useReactFlow();
     const [text, setText] = useState(label);
+    const [isEditing, setIsEditing] = useState(false);
 
     useEffect(() => {
         setText(label);
@@ -22,32 +23,80 @@ export function EditableLabel({ id, label, className = '', style = {} }: { id: s
     };
 
     const onBlur = () => {
+        setIsEditing(false);
         updateNodeData(id, { label: text });
     };
 
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsEditing(true);
+    };
+
+    if (isEditing) {
+        return (
+            <textarea
+                value={text}
+                onChange={onChange}
+                onBlur={onBlur}
+                autoFocus
+                style={style}
+                className={`w-full h-full bg-transparent resize-none outline-none border-none text-center font-medium placeholder-gray-400 overflow-hidden flex items-center justify-center ${className}`}
+                spellCheck={false}
+                onKeyDown={(e) => e.stopPropagation()}
+            />
+        );
+    }
+
     return (
-        <textarea
-            value={text}
-            onChange={onChange}
-            onBlur={onBlur}
+        <div
+            onClick={handleClick}
             style={style}
-            className={`w-full h-full bg-transparent resize-none outline-none border-none text-center font-medium placeholder-gray-400 overflow-hidden flex items-center justify-center ${className}`}
-            spellCheck={false}
-            onKeyDown={(e) => e.stopPropagation()}
-        />
+            className={`w-full h-full flex items-center justify-center text-center font-medium whitespace-pre-wrap break-words cursor-text ${className}`}
+        >
+            {text || <span className="text-gray-400 opacity-50">Label</span>}
+        </div>
     );
 }
 
 // --- Style Helper ---
 export function useNodeStyle(data: NodeData, defaultBg: string = 'white') {
-    return useMemo(() => ({
-        backgroundColor: data.backgroundColor || defaultBg,
-        borderColor: data.borderColor,
-        borderWidth: data.borderWidth ? `${data.borderWidth}px` : undefined,
-        color: data.textColor,
-        fontSize: data.fontSize ? `${data.fontSize}px` : undefined,
-        opacity: typeof data.opacity === 'number' ? Math.max(0, Math.min(100, data.opacity)) / 100 : 1,
-    }), [data, defaultBg]);
+    return useMemo(() => {
+        const baseStyle: React.CSSProperties = {
+            borderColor: data.borderColor,
+            borderWidth: data.borderWidth ? `${data.borderWidth}px` : undefined,
+            color: data.textColor,
+            fontSize: data.fontSize ? `${data.fontSize}px` : undefined,
+            opacity: typeof data.opacity === 'number' ? data.opacity / 100 : undefined,
+        };
+
+        let bg = data.backgroundColor || defaultBg;
+
+        if (data.glass) {
+            // Simple glass effect approximation
+            baseStyle.backdropFilter = 'blur(8px)';
+            baseStyle.backgroundColor = 'rgba(255, 255, 255, 0.2)'; // Override bg for glass
+            baseStyle.border = '1px solid rgba(255, 255, 255, 0.3)';
+        } else {
+            baseStyle.backgroundColor = bg;
+        }
+
+        if (data.shadow) {
+            baseStyle.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+        }
+
+        if (data.gradient) {
+            baseStyle.backgroundImage = `linear-gradient(135deg, ${bg} 0%, #ffffff 100%)`;
+            if (data.backgroundColor === '#ffffff') {
+                baseStyle.backgroundImage = `linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%)`;
+            }
+        }
+
+        if (data.borderRadius && data.borderRadius > 0) {
+            baseStyle.borderRadius = `${data.borderRadius}px`;
+        }
+
+        return baseStyle;
+    }, [data, defaultBg]);
 }
 
 // --- Rectangle ---

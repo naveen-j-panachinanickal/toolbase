@@ -166,7 +166,7 @@ export function OpenDrawLayout() {
     };
 
     return (
-        <div className={`flex flex-col h-[calc(100vh-64px)] w-full overflow-hidden bg-white dark:bg-[#09090b] ${isDark ? 'dark' : ''}`}>
+        <div className={`flex flex-col h-screen w-full overflow-hidden bg-white dark:bg-[#09090b] ${isDark ? 'dark' : ''}`}>
             <input
                 type="file"
                 ref={fileInputRef}

@@ -63,7 +63,7 @@ const MagicPdf = () => {
   }, [activeToolLabel]);
 
   return (
-    <div className="flex h-[calc(100vh-80px)] overflow-hidden bg-[#FDFDFD] relative">
+    <div className="flex h-scr overflow-hidden bg-[#FDFDFD] relative">
       <ToolSidebar
         title="PDF Tools"
         items={tools}

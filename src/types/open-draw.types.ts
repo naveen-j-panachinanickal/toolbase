@@ -8,49 +8,24 @@ import { z } from 'zod';
 
 // --- Core Graph Types ---
 
-export type ShapePath = {
-    d: string;
-    fill?: string;
-    stroke?: string;
-};
-
-export type ShapeDefinition = {
-    type: string;
-    label: string;
-    // Single-path shapes use `path`; complex shapes can provide multiple paths.
-    path?: string;
-    paths?: ShapePath[];
-    viewBox?: string;
-    width?: number;
-    height?: number;
-};
-
 export const NodeDataSchema = z.object({
     label: z.string().default('Node'),
     // Styling
     backgroundColor: z.string().optional(),
     borderColor: z.string().optional(),
     borderWidth: z.number().optional(),
-    borderStyle: z.enum(['solid', 'dashed', 'dotted']).optional(),
+    borderStyle: z.string().optional(), // 'solid', 'dashed', 'dotted'
     textColor: z.string().optional(),
     fontSize: z.number().optional(),
     icon: z.string().optional(),
-    iconName: z.string().optional(),
-    iconType: z.string().optional(),
-
-    // Effects
-    opacity: z.number().min(0).max(100).optional(),
-    borderRadius: z.number().min(0).optional(),
+    iconType: z.enum(['lucide', 'react-icon']).optional(),
+    // Advanced Styling
+    opacity: z.number().optional(),
+    borderRadius: z.number().optional(),
     shadow: z.boolean().optional(),
     glass: z.boolean().optional(),
     sketch: z.boolean().optional(),
     gradient: z.boolean().optional(),
-
-    // Shape metadata
-    shapeType: z.string().optional(),
-    customDefinition: z.any().optional(),
-
-    // Image fill
     imageUrl: z.string().optional(),
     imageMode: z.enum(['cover', 'contain', 'stretch']).optional(),
     imageZoom: z.number().optional(),
@@ -234,11 +209,18 @@ export type Graph = z.infer<typeof GraphSchema>;
 export type WorkerCommand = z.infer<typeof WorkerCommandSchema>;
 export type WorkerResponse = z.infer<typeof WorkerResponseSchema>;
 
+export interface ShapeDefinition {
+    type: string;
+    label: string;
+    path?: string; // Single path
+    paths?: { d: string; fill?: string; stroke?: string }[]; // Multiple paths
+    viewBox?: string;
+    width?: number; // Default width
+    height?: number; // Default height
+    icon?: React.ElementType; // For the toolbar
+}
+
 // --- Helper to create unique message IDs ---
 export function createMessageId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
-/**
- * OpenDraw Zod Schemas
- * Strictly typed message schemas for the TS <-> Python bridge.
- */
