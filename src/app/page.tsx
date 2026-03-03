@@ -64,6 +64,18 @@ export default function Home() {
       toolFolderName: "pixel-axe",
       icon: appIcons['pixel-axe'],
       metadata: ["image", "compress", "optimize", "resize", "convert", "format", "quality", "lossy", "lossless", "stego", "hide", "reveal", "upscale", "hide data in image", "extract data from image", "image info"]
+    },
+    {
+      title: "Omniparse",
+      toolFolderName: "omni-parse",
+      icon: appIcons['omni-parse'],
+      metadata: ["image", "compress", "optimize", "resize", "convert", "format", "quality", "lossy", "lossless", "stego", "hide", "reveal", "upscale", "hide data in image", "extract data from image", "image info"]
+    },
+    {
+      title: "Data Forge",
+      toolFolderName: "data-forge",
+      icon: appIcons['data-forge'],
+      metadata: ["image", "compress", "optimize", "resize", "convert", "format", "quality", "lossy", "lossless", "stego", "hide", "reveal", "upscale", "hide data in image", "extract data from image", "image info"]
     }
 
   ];
