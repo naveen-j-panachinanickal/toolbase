@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { removeBackground, Config } from '@imgly/background-removal';
 import {
     Upload,
@@ -12,7 +12,11 @@ import {
     Wand2,
     Trash2,
     AlertCircle,
-    Check
+    Check,
+    Copy,
+    ChevronRight,
+    Sparkles,
+    MousePointer2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -20,6 +24,19 @@ import { twMerge } from 'tailwind-merge';
 // --- Utility ---
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
+}
+
+async function copyImageToClipboard(url: string) {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        return true;
+    } catch (err) {
+        console.error('Failed to copy image: ', err);
+        return false;
+    }
 }
 
 // --- Types ---
@@ -33,6 +50,7 @@ interface ImageItem {
     status: ImageStatus;
     name: string;
     error?: string;
+    progress?: number;
 }
 
 // --- Components ---
@@ -50,53 +68,71 @@ const CheckerboardBackground = ({ opacity = 0.5 }: { opacity?: number }) => (
       `,
             backgroundSize: '20px 20px',
             backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-            backgroundColor: '#fff'
+            backgroundColor: '#f8fafc'
         }}
     />
 );
 
-const DemoAnimation = () => {
+const ResultPreview = ({ processed, original, status }: { processed: string | null; original: string; status: ImageStatus }) => {
     return (
-        <div className="relative w-full max-w-md mx-auto h-64 bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xl mb-12 select-none group">
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-48 h-48">
-                    {/* Background Layer (Grid) to represent transparency */}
-                    <CheckerboardBackground opacity={0.5} />
+        <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-200 group bg-slate-50">
+            {/* Background Layer (Transparency Grid) */}
+            <CheckerboardBackground opacity={0.4} />
 
-                    {/* Target User Image (Simulated) */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-32 h-32 bg-indigo-500 rounded-full flex items-center justify-center shadow-lg z-10">
-                            <span className="text-white text-4xl">👤</span>
-                        </div>
-                    </div>
-
-                    {/* Original Background (being removed) */}
-                    <motion.div
-                        className="absolute inset-0 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl z-0"
-                        initial={{ clipPath: 'inset(0 0 0 0)' }}
-                        animate={{ clipPath: ['inset(0 0 0 0)', 'inset(0 0 0 100%)', 'inset(0 0 0 100%)', 'inset(0 0 0 0)'] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+            {/* Main Image Display */}
+            <AnimatePresence mode="wait">
+                {status === 'completed' && processed ? (
+                    <m.img 
+                        key="processed"
+                        src={processed} 
+                        alt="Processed" 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="absolute inset-0 w-full h-full object-contain p-4 z-10" 
                     />
+                ) : (
+                    <m.img 
+                        key="original"
+                        src={original} 
+                        alt="Original" 
+                        initial={{ opacity: 1 }}
+                        animate={{ opacity: status === 'processing' ? 0.3 : 1 }}
+                        className="absolute inset-0 w-full h-full object-contain p-4 grayscale-[0.5] opacity-50" 
+                    />
+                )}
+            </AnimatePresence>
 
-                    {/* Scanner Line */}
-                    <motion.div
-                        className="absolute inset-0 z-20 pointer-events-none"
-                        initial={{ left: '-10%' }}
-                        animate={{ left: ['0%', '100%', '100%', '0%'] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
-                    >
-                        <div className="h-full w-1 bg-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
-                    </motion.div>
+            {/* Scanning Line for processing state */}
+            <ScanningLine status={status} />
+            
+            {/* Status Badge */}
+            {status === 'completed' && (
+                <div className="absolute top-4 left-4 z-20 px-3 py-1 bg-emerald-500 text-white text-[10px] uppercase font-bold tracking-widest rounded-full shadow-lg flex items-center gap-1.5">
+                    <Check className="w-3 h-3" />
+                    Success
                 </div>
-            </div>
-
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/5 text-slate-600 text-xs backdrop-blur-md border border-slate-200">
-                    <Wand2 className="w-3 h-3 text-indigo-500" />
-                    Auto-Removal
-                </span>
-            </div>
+            )}
         </div>
+    );
+};
+
+const ScanningLine = ({ status }: { status: ImageStatus }) => {
+    if (status !== 'processing') return null;
+    return (
+        <m.div
+            className="absolute inset-y-0 w-1 z-30 pointer-events-none"
+            initial={{ left: '0%' }}
+            animate={{ left: '100%' }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        >
+            <div className="h-full w-full bg-gradient-to-b from-transparent via-indigo-400 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.8)]" />
+            <m.div 
+                className="absolute top-0 left-0 w-40 h-full bg-gradient-to-r from-indigo-500/20 to-transparent"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+            />
+        </m.div>
     );
 };
 
@@ -106,54 +142,49 @@ export default function BgRemoverPage() {
     const [urlInput, setUrlInput] = useState('');
     const [isDragOver, setIsDragOver] = useState(false);
     const [processingId, setProcessingId] = useState<string | null>(null);
-    const [downloadProgress, setDownloadProgress] = useState<string | null>(null);
-    const [isUrlLoading, setIsUrlLoading] = useState(false);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Process queue effect
     useEffect(() => {
         const processNext = async () => {
-            if (processingId) return; // Already processing
+            if (processingId) return;
 
             const nextImage = images.find(img => img.status === 'pending');
-            if (!nextImage) return; // Nothing to process
+            if (!nextImage) return;
 
             setProcessingId(nextImage.id);
-
-            // Update status to processing
             setImages(prev => prev.map(img =>
-                img.id === nextImage.id ? { ...img, status: 'processing' } : img
+                img.id === nextImage.id ? { ...img, status: 'processing', progress: 0 } : img
             ));
 
             try {
-                // Construct public path for local assets
                 const publicPath = `${window.location.origin}/imgly/`;
-
                 let lastUpdate = 0;
 
                 const config: Config = {
-                    publicPath: publicPath, // Use local assets to prevent "Failed to fetch"
-                    model: 'isnet_fp16', // Use FP16 model (Higher accuracy than Quint8) to ensure body/clothing is detected, not just head
+                    publicPath: publicPath,
+                    model: 'isnet_fp16',
                     output: {
                         format: 'image/png',
                         quality: 1.0,
                     },
                     progress: (key, current, total) => {
                         const now = Date.now();
-                        // Aggressively throttle updates to every 500ms to prevent UI freezing
-                        if (now - lastUpdate > 500) {
-                            setDownloadProgress(`Loading AI Model (${key}): ${Math.round(current / total * 100)}%`);
+                        if (now - lastUpdate > 100) {
+                            const p = Math.round((current / total) * 100);
+                            setImages(prev => prev.map(img =>
+                                img.id === nextImage.id ? { ...img, progress: p } : img
+                            ));
                             lastUpdate = now;
                         }
                     }
                 };
 
-                // Yield control to the main thread for 800ms to ensure the UI fully updates (spinner starts)
-                await new Promise(resolve => setTimeout(resolve, 800));
-
+                await new Promise(resolve => setTimeout(resolve, 500));
                 const blob = await removeBackground(nextImage.file || nextImage.originalUrl, config);
 
-                // --- Post-Processing: Sharpen & Remove Shadows ---
+                // --- Post-Processing ---
                 let processedUrl: string | null = null;
                 try {
                     const cleanupBitmap = await createImageBitmap(blob);
@@ -168,45 +199,33 @@ export default function BgRemoverPage() {
                         const data = imageData.data;
 
                         for (let i = 3; i < data.length; i += 4) {
-                            const alpha = data[i];
-                            // Threshold lowered to 40 to PRESERVE body/clothing details while removing low-opacity shadows.
-                            // Previously 100 was too high and cut off shoulders/clothes.
-                            if (alpha < 40) {
-                                data[i] = 0; // Remove shadows/glare
-                            } else {
-                                data[i] = 255; // Make subject fully opaque and sharp
-                            }
+                            if (data[i] < 40) data[i] = 0;
+                            else data[i] = 255;
                         }
                         ctx.putImageData(imageData, 0, 0);
-
                         const cleanBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
                         processedUrl = cleanBlob ? URL.createObjectURL(cleanBlob) : URL.createObjectURL(blob);
                     } else {
                         processedUrl = URL.createObjectURL(blob);
                     }
                 } catch (e) {
-                    console.warn("Post-processing failed, using raw output", e);
                     processedUrl = URL.createObjectURL(blob);
                 }
 
                 setImages(prev => prev.map(img =>
-                    img.id === nextImage.id ? { ...img, status: 'completed', processedUrl } : img
+                    img.id === nextImage.id ? { ...img, status: 'completed', processedUrl, progress: 100 } : img
                 ));
             } catch (err) {
                 console.error("BG Removal Error", err);
-
                 let errorMessage = 'Failed to process image.';
-                // Check if it's likely a CORS error (external URL)
                 if (!nextImage.file && nextImage.originalUrl.startsWith('http')) {
-                    errorMessage = 'Failed to load URL. This is likely due to CORS restrictions on the source image. Please save the image and upload it manually.';
+                    errorMessage = 'CORS error: Please upload manually.';
                 }
-
                 setImages(prev => prev.map(img =>
                     img.id === nextImage.id ? { ...img, status: 'error', error: errorMessage } : img
                 ));
             } finally {
                 setProcessingId(null);
-                setDownloadProgress(null);
             }
         };
 
@@ -221,7 +240,7 @@ export default function BgRemoverPage() {
 
         const newImages: ImageItem[] = Array.from(files).map(file => ({
             id: Math.random().toString(36).substring(7),
-            originalUrl: URL.createObjectURL(file), // Create object URL for preview and processing
+            originalUrl: URL.createObjectURL(file),
             file: file,
             processedUrl: null,
             status: 'pending',
@@ -229,63 +248,6 @@ export default function BgRemoverPage() {
         }));
 
         setImages(prev => [...prev, ...newImages]);
-    };
-
-    const handleUrlSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!urlInput) return;
-
-        if (images.length >= 5) {
-            alert("Maximum 5 images allowed");
-            return;
-        }
-
-        // Basic URL validation
-        try {
-            new URL(urlInput);
-        } catch {
-            alert("Please enter a valid URL");
-            return;
-        }
-
-        setIsUrlLoading(true);
-
-        try {
-            // Fetch the image via our proxy to handle CORS/CORP headers correctly
-            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(urlInput)}`;
-            const response = await fetch(proxyUrl);
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch image: ${response.statusText}`);
-            }
-
-            const blob = await response.blob();
-            // Create a local object URL from the proxied blob
-            // This ensures the image displays correctly (CORP headers bypassed by blob URL context)
-            // and can be processed by the background remover without extensive network delays.
-            const localUrl = URL.createObjectURL(blob);
-
-            // Create a File object from the blob to pass directly to the library
-            // This bypasses the internal fetching mechanism which can fail even with blob URLs
-            const file = new File([blob], 'image_from_url.png', { type: blob.type });
-
-            const newItem: ImageItem = {
-                id: Math.random().toString(36).substring(7),
-                originalUrl: localUrl,
-                file: file, // Pass the file object
-                processedUrl: null,
-                status: 'pending', // Will switch to processing immediately
-                name: 'Image from URL'
-            };
-
-            setImages(prev => [...prev, newItem]);
-            setUrlInput('');
-        } catch (error) {
-            console.error("URL Import Error:", error);
-            alert("Failed to import image from URL. The server may be blocking access. Please download the image and upload manually.");
-        } finally {
-            setIsUrlLoading(false);
-        }
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -296,11 +258,46 @@ export default function BgRemoverPage() {
         }
     };
 
+    const handleUrlSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!urlInput || images.length >= 5) return;
+
+        try {
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(urlInput)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error("Fetch failed");
+            const blob = await response.blob();
+            const localUrl = URL.createObjectURL(blob);
+            const file = new File([blob], 'image_from_url.png', { type: blob.type });
+
+            const newItem: ImageItem = {
+                id: Math.random().toString(36).substring(7),
+                originalUrl: localUrl,
+                file: file,
+                processedUrl: null,
+                status: 'pending',
+                name: 'Imported Image'
+            };
+
+            setImages(prev => [...prev, newItem]);
+            setUrlInput('');
+        } catch (error) {
+            alert("Failed to import URL.");
+        }
+    };
+
+    const handleCopy = async (id: string, url: string) => {
+        const success = await copyImageToClipboard(url);
+        if (success) {
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 2000);
+        }
+    };
+
     const removeImage = (id: string) => {
         setImages(prev => {
             const item = prev.find(i => i.id === id);
             if (item) {
-                // Cleanup object URLs to avoid memory leaks
                 if (item.originalUrl.startsWith('blob:')) URL.revokeObjectURL(item.originalUrl);
                 if (item.processedUrl) URL.revokeObjectURL(item.processedUrl);
             }
@@ -319,246 +316,296 @@ export default function BgRemoverPage() {
     }, [images]);
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100 font-sans">
-            {/* Dynamic Background */}
+        <div className="min-h-screen bg-[#fafafa] text-slate-900 selection:bg-indigo-100 font-sans pb-24">
+            {/* Ambient Background */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-200/30 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-200/30 rounded-full blur-[120px]" />
+                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-indigo-100/40 rounded-full blur-[140px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-100/40 rounded-full blur-[140px]" />
             </div>
 
-            <div className="relative z-10 container mx-auto px-4 py-16 flex flex-col items-center">
-
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center mb-10 max-w-2xl"
-                >
-                    <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="inline-flex items-center justify-center p-3 mb-6 bg-white rounded-2xl border border-indigo-100 shadow-sm"
-                    >
-                        <Wand2 className="w-5 h-5 text-indigo-500 mr-2" />
-                        <span className="font-medium text-indigo-600">
-                            Image Background Remover
-                        </span>
-                    </motion.div>
-
-                    {downloadProgress && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
+            <div className="relative z-10 container mx-auto px-4 py-12 flex flex-col items-center">
+                
+                {/* Hero Section */}
+                <AnimatePresence mode="wait">
+                    {images.length === 0 && (
+                        <m.div 
+                            key="hero"
+                            initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="mb-6 inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200"
+                            exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+                            className="text-center mb-16 max-w-3xl"
                         >
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            {downloadProgress}
-                        </motion.div>
+                            <m.div 
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                                className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 bg-white/60 backdrop-blur-xl rounded-full border border-indigo-100 shadow-sm"
+                            >
+                                <Sparkles className="w-4 h-4 text-indigo-500" />
+                                <span className="text-sm font-semibold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+                                    Local AI Processing
+                                </span>
+                            </m.div>
+
+                            <h1 className="text-6xl md:text-7xl font-extrabold mb-8 tracking-tight text-slate-900">
+                                Backgrounds <br />
+                                <span className="relative">
+                                    <span className="relative z-10 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-[length:200%_auto] animate-gradient-x">
+                                        Vanish Like Magic.
+                                    </span>
+                                    <m.span 
+                                        className="absolute bottom-2 left-0 w-full h-3 bg-indigo-100/50 -z-0 rounded-full"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: '100%' }}
+                                        transition={{ delay: 0.6, duration: 0.8 }}
+                                    />
+                                </span>
+                            </h1>
+                            <p className="text-xl text-slate-500 leading-relaxed max-w-2xl mx-auto">
+                                High-precision background removal that runs 100% in your browser. 
+                                Private, secure, and professional-grade subject isolation.
+                            </p>
+                        </m.div>
                     )}
+                </AnimatePresence>
 
-                    <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight text-slate-900">
-                        Remove Backgrounds <br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
-                            Instantly & Free
-                        </span>
-                    </h1>
-                    <p className="text-lg text-slate-600">
-                        Upload images or paste a URL. High-quality processing runs 100% in your browser.
-                        No logins, no watermarks, completely private.
-                    </p>
-                </motion.div>
-
-                {/* Helper Animation */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="w-full"
-                >
-                    <DemoAnimation />
-                </motion.div>
-
-                {/* Input Area */}
-                <motion.div
+                {/* Main Upload Box */}
+                <m.div 
                     layout
-                    className="w-full max-w-3xl bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-200/50 mb-12"
+                    initial={false}
+                    className={cn(
+                        "w-full transition-all duration-500 ease-in-out",
+                        images.length > 0 
+                            ? "max-w-4xl bg-white/40 backdrop-blur-md border border-slate-200 rounded-2xl p-2 mb-8" 
+                            : "max-w-3xl bg-white/80 backdrop-blur-2xl border border-white/50 rounded-[2.5rem] p-3 shadow-2xl shadow-indigo-100/50 mb-16 overflow-hidden"
+                    )}
                 >
-                    <div className="flex gap-4 mb-6 p-1 bg-slate-100 rounded-xl w-fit mx-auto">
-                        <button
-                            onClick={() => setActiveTab('upload')}
-                            className={cn(
-                                "px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2",
-                                activeTab === 'upload' ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <Upload className="w-4 h-4" />
-                            Upload Image
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('url')}
-                            className={cn(
-                                "px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2",
-                                activeTab === 'url' ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <LinkIcon className="w-4 h-4" />
-                            Paste URL
-                        </button>
-                    </div>
+                    <div className={cn(
+                        "bg-slate-50/50 rounded-[2rem] border border-slate-100/50 transition-all duration-500",
+                        images.length > 0 ? "p-4" : "p-6 md:p-10"
+                    )}>
+                        <div className={cn(
+                            "flex gap-2 p-1.5 bg-slate-200/40 rounded-2xl w-fit mx-auto backdrop-blur-md transition-all duration-500",
+                            images.length > 0 ? "mb-0" : "mb-10"
+                        )}>
+                            <button
+                                onClick={() => setActiveTab('upload')}
+                                className={cn(
+                                    "rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2",
+                                    images.length > 0 ? "px-4 py-2" : "px-8 py-3",
+                                    activeTab === 'upload' ? "bg-white text-indigo-600 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                                )}
+                            >
+                                <Upload className="w-4 h-4" />
+                                {images.length > 0 ? "Add File" : "File Upload"}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('url')}
+                                className={cn(
+                                    "rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2",
+                                    images.length > 0 ? "px-4 py-2" : "px-8 py-3",
+                                    activeTab === 'url' ? "bg-white text-indigo-600 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                                )}
+                            >
+                                <LinkIcon className="w-4 h-4" />
+                                {images.length > 0 ? "Add URL" : "URL Paste"}
+                            </button>
+                        </div>
 
-                    <div className="min-h-[200px] flex flex-col justify-center">
-                        <AnimatePresence mode="wait">
-                            {activeTab === 'upload' ? (
-                                <motion.div
-                                    key="upload"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="w-full h-full"
+                        <AnimatePresence>
+                            {images.length === 0 && (
+                                <m.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden"
                                 >
-                                    <div
-                                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                                        onDragLeave={() => setIsDragOver(false)}
-                                        onDrop={handleDrop}
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className={cn(
-                                            "group border-2 border-dashed rounded-2xl h-64 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 bg-slate-50/50",
-                                            isDragOver ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:border-indigo-400 hover:bg-slate-50"
-                                        )}
-                                    >
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            className="hidden"
-                                            onChange={(e) => e.target.files && handleFiles(e.target.files)}
-                                        />
-                                        <div className="p-4 rounded-full bg-indigo-50 mb-4 group-hover:scale-110 transition-transform duration-300">
-                                            <ImageIcon className="w-8 h-8 text-indigo-500" />
-                                        </div>
-                                        <p className="text-lg font-medium mb-2 text-slate-700">Click or Drag images here</p>
-                                        <p className="text-sm text-slate-500">Supports JPG, PNG, WEBP</p>
+                                    <div className="min-h-[220px] mt-6">
+                                        <AnimatePresence mode="wait">
+                                            {activeTab === 'upload' ? (
+                                                <m.div
+                                                    key="upload"
+                                                    initial={{ opacity: 0, scale: 0.98 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.98 }}
+                                                    className="w-full h-full"
+                                                >
+                                                    <div
+                                                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                                                        onDragLeave={() => setIsDragOver(false)}
+                                                        onDrop={handleDrop}
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        className={cn(
+                                                            "group border-2 border-dashed rounded-[1.5rem] h-64 flex flex-col items-center justify-center cursor-pointer transition-all duration-500",
+                                                            isDragOver ? "border-indigo-500 bg-indigo-50/50 scale-[1.02]" : "border-slate-200 hover:border-indigo-400 hover:bg-white"
+                                                        )}
+                                                    >
+                                                        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
+                                                        <div className="p-6 rounded-3xl bg-indigo-50 mb-6 group-hover:bg-indigo-100 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                                                            <ImageIcon className="w-10 h-10 text-indigo-600" />
+                                                        </div>
+                                                        <p className="text-xl font-bold mb-2 text-slate-800">Drop your images here</p>
+                                                        <p className="text-sm text-slate-400 font-medium tracking-wide">JPG, PNG or WEBP (Max 5MB)</p>
+                                                    </div>
+                                                </m.div>
+                                            ) : (
+                                                <m.div
+                                                    key="url"
+                                                    initial={{ opacity: 0, scale: 0.98 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.98 }}
+                                                    className="w-full h-64 flex flex-col justify-center items-center px-4"
+                                                >
+                                                    <form onSubmit={handleUrlSubmit} className="w-full max-w-lg space-y-4">
+                                                        <div className="relative group">
+                                                            <LinkIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                            <input
+                                                                type="url"
+                                                                value={urlInput}
+                                                                onChange={(e) => setUrlInput(e.target.value)}
+                                                                placeholder="Paste image address..."
+                                                                className="w-full bg-white border-2 border-slate-100 rounded-2xl py-5 pl-14 pr-6 text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-sm placeholder:text-slate-400 font-medium"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="submit"
+                                                            disabled={!urlInput}
+                                                            className="w-full h-14 bg-slate-900 hover:bg-indigo-600 disabled:opacity-30 text-white font-bold rounded-2xl transition-all shadow-xl shadow-slate-200 active:scale-[0.98] flex items-center justify-center gap-2 group"
+                                                        >
+                                                            <span>Import Subject</span>
+                                                            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                                        </button>
+                                                    </form>
+                                                </m.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="url"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="w-full h-64 flex flex-col justify-center items-center"
+                                </m.div>
+                            )}
+                        </AnimatePresence>
+                        
+                        {/* Compact URL/Upload Fields when images exist */}
+                        <AnimatePresence>
+                            {images.length > 0 && (
+                                <m.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden mt-4"
                                 >
-                                    <form onSubmit={handleUrlSubmit} className="w-full max-w-lg flex flex-col gap-4">
-                                        <div className="relative group">
-                                            <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                    {activeTab === 'url' ? (
+                                        <form onSubmit={handleUrlSubmit} className="flex gap-2 w-full max-w-2xl mx-auto">
                                             <input
                                                 type="url"
                                                 value={urlInput}
                                                 onChange={(e) => setUrlInput(e.target.value)}
-                                                placeholder="https://example.com/image.jpg"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 pl-12 pr-4 text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-400"
+                                                placeholder="Paste another URL..."
+                                                className="flex-grow bg-white/50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 transition-all"
                                             />
+                                            <button type="submit" disabled={!urlInput} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50">Add</button>
+                                        </form>
+                                    ) : (
+                                        <div className="text-center">
+                                            <button 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="text-xs font-bold text-indigo-500 hover:text-indigo-600 flex items-center gap-2 mx-auto"
+                                            >
+                                                <Upload className="w-3 h-3" />
+                                                Click to upload more files
+                                            </button>
+                                            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleFiles(e.target.files)} />
                                         </div>
-                                        <button
-                                            type="submit"
-                                            disabled={!urlInput || isUrlLoading}
-                                            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-indigo-200 active:scale-[0.98] flex items-center justify-center gap-2"
-                                        >
-                                            {isUrlLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                            {isUrlLoading ? 'Importing...' : 'Import Image'}
-                                        </button>
-                                    </form>
-                                </motion.div>
+                                    )}
+                                </m.div>
                             )}
                         </AnimatePresence>
                     </div>
-                </motion.div>
+                </m.div>
 
-                {/* Results Section */}
-                <div className="w-full max-w-4xl space-y-4">
-                    <AnimatePresence>
+                {/* Queue / Results */}
+                <div className="w-full max-w-4xl space-y-12">
+                    <AnimatePresence mode="popLayout">
                         {images.map((img) => (
-                            <motion.div
+                            <m.div
                                 key={img.id}
                                 layout
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg shadow-slate-100"
+                                initial={{ opacity: 0, y: 40 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                className="group bg-white rounded-[2rem] border border-slate-100 shadow-2xl shadow-slate-200/40 overflow-hidden p-3"
                             >
-                                <div className="p-4 md:p-6 grid md:grid-cols-[1fr,auto] gap-6 items-center">
-                                    <div className="flex flex-col md:flex-row gap-6 items-center">
-                                        {/* Before */}
-                                        <div className="relative group w-full md:w-64 aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
-                                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 rounded text-[10px] text-white/90 uppercase tracking-wider backdrop-blur-md">Original</div>
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={img.originalUrl} alt="Original" className="w-full h-full object-contain" />
+                                <div className="flex flex-col lg:flex-row gap-8">
+                                    {/* Preview Area */}
+                                    <div className="relative w-full lg:w-[540px] aspect-video flex-shrink-0 bg-slate-50 rounded-[1.5rem] overflow-hidden group-hover:shadow-lg transition-shadow duration-500">
+                                        <ResultPreview 
+                                            processed={img.processedUrl} 
+                                            original={img.originalUrl} 
+                                            status={img.status} 
+                                        />
+                                    </div>
+
+                                    {/* Info & Metadata */}
+                                    <div className="flex-grow flex flex-col justify-center py-6 pr-8 pl-4 lg:pl-0">
+                                        <div className="mb-10">
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/50 backdrop-blur-sm rounded-xl w-fit border border-slate-200/50">
+                                                <ImageIcon className="w-4 h-4 text-slate-400" />
+                                                <span className="text-xs font-bold text-slate-500 truncate max-w-[240px]">
+                                                    {img.name === 'Imported Image' ? 'Isolated Subject' : img.name}
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        {/* Arrow or Status */}
-                                        <div className="flex items-center justify-center text-slate-400">
-                                            {img.status === 'processing' && <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />}
-                                            {img.status === 'completed' && <Wand2 className="w-6 h-6 text-green-500" />}
-                                            {img.status === 'error' && <AlertCircle className="w-6 h-6 text-red-500" />}
-                                            {img.status === 'pending' && <div className="w-2 h-2 rounded-full bg-slate-300" />}
-                                        </div>
-
-                                        {/* After */}
-                                        <div className="relative group w-full md:w-64 aspect-video bg-[#e0e0e0] rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center">
-                                            {/* Transparency Grid */}
-                                            <CheckerboardBackground opacity={0.4} />
-
-                                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/60 z-10 rounded text-[10px] text-white/90 uppercase tracking-wider backdrop-blur-md">Result</div>
-
+                                        <div className="grid grid-cols-2 gap-4">
                                             {img.status === 'completed' && img.processedUrl ? (
                                                 <>
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img
-                                                        src={img.processedUrl}
-                                                        alt="Processed"
-                                                        className="relative z-10 w-full h-full object-contain"
-                                                        style={{ imageRendering: 'auto' }} // Ensure browser uses high-quality scaling
-                                                    />
+                                                    <button 
+                                                        onClick={() => handleCopy(img.id, img.processedUrl!)}
+                                                        className="h-14 bg-slate-900 hover:bg-indigo-600 text-white rounded-2xl flex items-center justify-center gap-3 font-bold transition-all active:scale-[0.98] shadow-lg shadow-slate-100"
+                                                    >
+                                                        {copiedId === img.id ? <Check className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
+                                                        {copiedId === img.id ? 'Copied!' : 'Copy'}
+                                                    </button>
+                                                    <a
+                                                        href={img.processedUrl}
+                                                        download={`isolated-${img.name.replace(/\.[^/.]+$/, "")}.png`}
+                                                        className="h-14 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center gap-3 font-bold transition-all active:scale-[0.98] border border-indigo-100 shadow-sm"
+                                                    >
+                                                        <Download className="w-5 h-5" />
+                                                        PNG
+                                                    </a>
                                                 </>
                                             ) : (
-                                                <div className="relative z-10 text-slate-500 text-sm font-medium">
-                                                    {img.status === 'processing' ? 'Removing background...' : img.status === 'error' ? 'Failed' : 'Waiting...'}
+                                                <div className="col-span-2 h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-300 font-bold italic">
+                                                    Action buttons locked...
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex md:flex-col gap-3 justify-end w-full md:w-auto mt-4 md:mt-0">
-                                        {img.status === 'completed' && img.processedUrl && (
-                                            <a
-                                                href={img.processedUrl}
-                                                download={`bg-removed-${img.name.replace(/\.[^/.]+$/, "")}.png`}
-                                                className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl transition-colors font-medium text-sm border border-green-200"
-                                            >
-                                                <Download className="w-4 h-4" />
-                                                Download
-                                            </a>
-                                        )}
+                                        
                                         <button
                                             onClick={() => removeImage(img.id)}
-                                            className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors font-medium text-sm border border-red-200"
+                                            className="mt-6 text-slate-300 hover:text-red-400 text-sm font-bold flex items-center gap-2 transition-colors w-fit group/btn"
                                         >
-                                            <Trash2 className="w-4 h-4" />
-                                            Remove
+                                            <Trash2 className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                                            Discard Image
                                         </button>
                                     </div>
                                 </div>
-                            </motion.div>
+                            </m.div>
                         ))}
                     </AnimatePresence>
                 </div>
 
+                {/* Empty State Helper */}
+                {images.length === 0 && (
+                    <m.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.8 }}
+                        className="text-center text-slate-300 font-bold uppercase tracking-[0.2em] text-[10px]"
+                    >
+                        Drag subjects to begin the transformation
+                    </m.div>
+                )}
             </div>
         </div>
     );

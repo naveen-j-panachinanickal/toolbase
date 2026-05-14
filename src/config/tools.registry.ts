@@ -21,6 +21,7 @@ import { dataBuilderConfig } from "./tools/data-builder";
 import { archiveKitConfig } from "./tools/archive-kit";
 import { noteVaultConfig } from "./tools/note-vault";
 import { qrForgeConfig } from "./tools/qr-forge";
+import { bgremoverConfig } from "./tools/bgremover";
 
 // ============================================================
 // REGISTERED TOOLS
@@ -43,6 +44,7 @@ export const TOOLS: ToolMeta[] = [
   dataBuilderConfig,
   archiveKitConfig,
   qrForgeConfig,
+  bgremoverConfig,
 ];
 
 // ============================================================
