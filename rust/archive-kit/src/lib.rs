@@ -29,18 +29,27 @@ struct ExtractOptions {
     password: Option<String>,
 }
 
+/// Metadata for a single file within an archive.
 #[derive(Debug, Serialize)]
 struct Entry {
+    /// The relative path and filename.
     name: String,
+    /// Uncompressed size in bytes.
     size: usize,
+    /// Compressed size in bytes.
     compressed_size: usize,
+    /// Whether this entry is a directory.
     is_directory: bool,
+    /// The archive format ('zip', 'tar', etc.)
     format: String,
 }
 
+/// A file payload that has been encoded for transport back to JavaScript.
 #[derive(Debug, Serialize)]
 struct OutputFile {
+    /// The filename.
     name: String,
+    /// The file content encoded as Base64.
     bytes_b64: String,
 }
 
@@ -158,6 +167,15 @@ fn extract_tar_files_from_reader<R: Read>(reader: R) -> Result<Vec<OutputFile>, 
     Ok(out)
 }
 
+/// Creates an archive using the legacy JSON-Base64 bridge.
+/// 
+/// This method accepts all file data as a Base64-encoded JSON string, 
+/// which is memory-intensive for large files.
+/// 
+/// # Arguments
+/// * `format` - 'zip', 'tar', or 'tgz'.
+/// * `files_json` - JSON string of `InputFile` array.
+/// * `options_json` - JSON string of `CreateOptions`.
 #[wasm_bindgen]
 pub fn create_archive_json(
     format: String,
@@ -204,6 +222,17 @@ pub fn extract_archive_json(
     Ok(res.as_string().unwrap_or_default())
 }
 
+/// Creates an archive using the high-performance Binary-v2 bridge.
+/// 
+/// This method avoids Base64 overhead by accepting a single flat byte array 
+/// and an array of offsets. This is the preferred method for large archives.
+/// 
+/// # Arguments
+/// * `format` - 'zip', 'tar', or 'tgz'.
+/// * `names` - List of filenames.
+/// * `all_bytes` - The concatenated raw bytes of all files.
+/// * `byte_offsets` - The ending byte offset for each file in `all_bytes`.
+/// * `options_json` - JSON string of `CreateOptions` (compression, password).
 #[wasm_bindgen]
 pub fn create_archive_v2(
     format: String,

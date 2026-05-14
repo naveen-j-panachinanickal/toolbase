@@ -4,16 +4,37 @@ import { Upload, X, File, Image, Music, FileText, Film, CheckCircle, AlertCircle
 import { Button } from './Button';
 import { Card } from './Card';
 
+/**
+ * Props for the FileUploader component.
+ */
 interface FileUploaderProps {
+    /** Callback fired when files are selected or dropped. */
     onFilesSelected: (files: File[]) => void;
+    /** Comma-separated list of accepted MIME types or file extensions. */
     accept?: string;
+    /** Whether to allow multiple file selection. */
     multiple?: boolean;
-    maxSize?: number; // in bytes
+    /** Maximum allowed file size in bytes. */
+    maxSize?: number;
+    /** Optional CSS class for the container. */
     className?: string;
+    /** Whether to display the list of uploaded files below the drop zone. */
     showFileList?: boolean;
+    /** Whether the uploader is interaction-disabled. */
     disabled?: boolean;
 }
 
+/**
+ * A sophisticated drag-and-drop file upload component.
+ * 
+ * Features:
+ * - Drag over visual feedback with spring animations.
+ * - File type and size validation.
+ * - Progress tracking with per-file status indicators.
+ * - Icon association based on file MIME types.
+ *
+ * @param props - Component configuration properties.
+ */
 export const FileUploader = ({
     onFilesSelected,
     accept = '*',

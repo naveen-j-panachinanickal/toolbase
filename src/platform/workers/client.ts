@@ -20,6 +20,12 @@ export interface PendingRequest {
 /** Coarse-grained readiness states for a WASM-backed worker. */
 export type WorkerReadyState = 'cold' | 'warming' | 'ready';
 
+/**
+ * Generic Worker Client.
+ * 
+ * Manages the lifecycle of a Web Worker, including initialization, 
+ * message passing (request/response pattern), and error handling.
+ */
 export class WorkerClient {
   private worker: Worker | null = null;
   private initPromise: Promise<void> | null = null;
@@ -32,21 +38,27 @@ export class WorkerClient {
   onReadyStateChange?: (state: WorkerReadyState, message?: string) => void;
 
   /**
-   * @param createWorker A factory function that returns a new Web Worker instance.
-   *                     e.g. () => new Worker(new URL('../workers/magic-pdf.worker.ts', import.meta.url))
-   * @param workerName   A human-readable name for logging and error messages.
+   * Creates a new WorkerClient.
+   * 
+   * @param createWorker - A factory function that returns a new Web Worker instance.
+   * @param workerName - A human-readable name for logging and error messages.
    */
   constructor(
     private createWorker: () => Worker,
     private workerName: string
   ) {}
 
+
   private setReadyState(state: WorkerReadyState, message?: string): void {
     this.readyState = state;
     this.onReadyStateChange?.(state, message);
   }
 
-  /** Lazily boot the worker. Safe to call multiple times — returns the same promise. */
+  /**
+   * Lazily boots the worker. 
+   * Safe to call multiple times — returns the same promise.
+   * @returns A promise that resolves once the worker sends its 'READY' message.
+   */
   init(): Promise<void> {
     if (this.initPromise) return this.initPromise;
 
@@ -108,13 +120,15 @@ export class WorkerClient {
   }
 
   /**
-   * Execute an action on the worker.
-   * Automatically initializes the worker on first call.
+   * Executes an action on the worker.
+   * 
+   * Automatically initializes the worker on the first call.
    *
-   * @param action   - Python-side action name (e.g. 'compress', 'to_images')
-   * @param payload  - Data sent to the worker, translated to Python kwargs
-   * @param transfer - Optional array of Transferable objects to transfer ownership
-   * @param signal   - Optional AbortSignal to cancel waiting for the worker result
+   * @param action - The action name to be handled by the worker logic.
+   * @param payload - Data sent to the worker.
+   * @param transfer - Optional array of Transferable objects to transfer ownership (memory optimization).
+   * @param signal - Optional AbortSignal to cancel waiting for the worker result.
+   * @returns A promise resolving to the result from the worker.
    */
   async execute(
     action: string,

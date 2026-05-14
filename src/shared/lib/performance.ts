@@ -6,13 +6,26 @@
 
 import { getToolById } from '@/config/tools.registry';
 
+/**
+ * Utility class for measuring the execution duration of tools.
+ * 
+ * When stopped, it automatically identifies the execution engine 
+ * (JS, Python, or WASM) and dispatches a custom event that is 
+ * consumed by the PerformanceToast and PrivacyMonitor.
+ */
 class PerformanceTimer {
   private startTime: number | null = null;
 
+  /** Marks the start of a performance-critical operation. */
   start() {
     this.startTime = performance.now();
   }
 
+  /**
+   * Marks the end of an operation and broadcasts results.
+   * 
+   * @param toolId - The unique ID of the tool being measured.
+   */
   stop(toolId: string) {
     if (this.startTime === null) return;
     
@@ -36,13 +49,14 @@ class PerformanceTimer {
 }
 
 /**
- * Creates a new timer instance.
+ * Factory function to create a new PerformanceTimer instance.
  * 
- * Usage:
- *   const timer = createTimer();
- *   timer.start();
- *   await work();
- *   timer.stop('tool-id');
+ * @returns {PerformanceTimer} A fresh timer instance.
+ * @example
+ * const timer = createTimer();
+ * timer.start();
+ * await doWork();
+ * timer.stop('pixels/resize');
  */
 export function createTimer() {
   return new PerformanceTimer();

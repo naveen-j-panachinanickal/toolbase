@@ -1,13 +1,23 @@
 
+/** Represents the result of a network speed test. */
 export interface SpeedTestResult {
-    ping: number; // ms
-    download: number; // Mbps
-    upload: number; // Mbps
+    /** Latency in milliseconds. */
+    ping: number;
+    /** Download speed in Megabits per second (Mbps). */
+    download: number;
+    /** Upload speed in Megabits per second (Mbps). */
+    upload: number;
 }
 
 /**
- * Measures latency to a target URL.
- * Uses Cloudflare trace endpoint which is lightweight and edge-cached.
+ * Measures network latency (ping) to a target URL.
+ * 
+ * Uses a lightweight endpoint and multiple samples to calculate a 
+ * representative average latency.
+ *
+ * @param url - The target endpoint to ping. Defaults to Cloudflare trace.
+ * @param samples - Number of requests to send for averaging.
+ * @returns Average latency in ms.
  */
 export async function measurePing(url: string = 'https://www.cloudflare.com/cdn-cgi/trace', samples: number = 5): Promise<number> {
     const latencies: number[] = [];
@@ -37,8 +47,11 @@ export async function measurePing(url: string = 'https://www.cloudflare.com/cdn-
 }
 
 /**
- * Measures download speed by fetching a static asset using parallel streams.
- * Returns speed in Mbps.
+ * Measures download bandwidth by fetching assets over parallel streams.
+ * 
+ * @param signal - Optional AbortSignal to stop the measurement.
+ * @param onProgress - Optional callback for real-time Mbps updates.
+ * @returns Measured download speed in Mbps.
  */
 export async function measureDownload(
     signal?: AbortSignal,
@@ -107,8 +120,11 @@ export async function measureDownload(
 }
 
 /**
- * Measures upload speed by sending random data to an echo service using parallel streams.
- * Returns speed in Mbps.
+ * Measures upload bandwidth by sending data to an echo service via parallel streams.
+ * 
+ * @param signal - Optional AbortSignal to stop the measurement.
+ * @param onProgress - Optional callback for real-time Mbps updates.
+ * @returns Measured upload speed in Mbps.
  */
 export async function measureUpload(
     signal?: AbortSignal,

@@ -1,12 +1,27 @@
 import React from "react";
 import { cn } from "@/shared/lib/utils";
 
+/**
+ * Props for the Button component.
+ */
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+    /** The visual style of the button. */
     variant?: "primary" | "secondary" | "ghost" | "outline" | "danger";
+    /** The vertical and horizontal padding/scaling of the button. */
     size?: "sm" | "md" | "lg" | "icon";
+    /** If true, displays a loading spinner and disables the button. */
     isLoading?: boolean;
 }
 
+/**
+ * A highly reusable, themed Button component.
+ * 
+ * Implements various macOS-inspired and standard UI variants with 
+ * smooth transitions, hover states, and built-in loading indicators.
+ *
+ * @param props - Component properties and standard HTML button attributes.
+ * @param ref - Forwarded reference to the underlying HTMLButtonElement.
+ */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = "primary", size = "md", isLoading, children, ...props }, ref) => {
         const variants = {

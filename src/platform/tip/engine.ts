@@ -28,49 +28,50 @@ import { stampBundle } from './bundle';
 
 /**
  * A single step in a TIP pipeline.
- * The engine resolves toolId → TIPTool via TIPToolRegistry.
+ * 
+ * Defines which tool to invoke and what configuration to pass. 
+ * The engine resolves the toolId into a TIPTool via the TIPToolRegistry.
  */
 export interface TIPPipelineStep {
-  /** Must match a registered TIPTool.id */
+  /** The unique ID of a registered TIPTool. */
   toolId: string;
-  /** Config values for this invocation */
+  /** Configuration settings for the tool invocation. */
   config: TIPConfig;
 }
 
 // ─── Engine Hooks ─────────────────────────────────────────────────────────────
 
 /**
- * Callbacks the engine fires as it progresses through the pipeline.
- * The React hook (usePipelineEngine) maps these to setState calls.
- * Non-React consumers (e.g., a CLI) can log to the console instead.
+ * Callbacks for observing the lifecycle of a pipeline execution.
+ * 
+ * Used by the UI (via usePipelineEngine) to update progress bars, 
+ * logs, and error states.
  */
 export interface TIPEngineHooks {
-  /** Fired immediately before a step's tool.invoke() is called */
-  onStepStart:    (stepIndex: number, toolId: string) => void;
-  /** Forwarded from tool's hooks.onProgress — 0–100 */
+  /** Fired before tool.invoke() starts. */
+  onStepStart: (stepIndex: number, toolId: string) => void;
+  /** Fired periodically during tool execution (0-100). */
   onStepProgress: (stepIndex: number, percent: number, message?: string) => void;
-  /** Fired when tool.invoke() resolves successfully */
+  /** Fired when a step completes successfully. */
   onStepComplete: (stepIndex: number, toolId: string, durationMs: number) => void;
-  /** Fired when tool.invoke() rejects or a protocol error occurs */
-  onStepError:    (stepIndex: number, toolId: string, error: TIPError) => void;
+  /** Fired if a tool throws an error or a protocol violation occurs. */
+  onStepError: (stepIndex: number, toolId: string, error: TIPError) => void;
 }
 
 // ─── Pipeline Execution ───────────────────────────────────────────────────────
 
 /**
- * Execute a TIP pipeline.
- *
- * @param steps        - Ordered list of steps to execute
- * @param initialBundle - The starting data (typically the user's uploaded file)
- * @param engineHooks  - Callbacks for observing execution progress
- * @param signal       - AbortSignal — cancel the pipeline from the outside
- *
- * @returns The final TIPBundle produced by the last step
- *
- * @throws TIPError with code 'CANCELLED'       if the signal fires
- * @throws TIPError with code 'TOOL_NOT_FOUND'  if a toolId has no registration
- * @throws TIPError with code 'TYPE_MISMATCH'   if types are incompatible
- * @throws TIPError with code 'EXECUTION_FAILED' if a tool throws a non-TIPError
+ * The main entry point for executing a TIP pipeline.
+ * 
+ * Orchestrates tool resolution, type validation, automatic transformation,
+ * and result stamping. 
+ * 
+ * @param steps - The sequence of tools to run.
+ * @param initialBundle - The starting data bundle.
+ * @param engineHooks - Lifecycle hooks for progress reporting.
+ * @param signal - An AbortSignal to cancel execution.
+ * @param onPauseCheck - Optional callback for pipeline pausing (INP).
+ * @returns The final bundle produced by the pipeline.
  */
 export async function executeTIPPipeline(
   steps: TIPPipelineStep[],

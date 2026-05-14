@@ -1,13 +1,29 @@
 import { loadPyodide, type PyodideInterface } from "pyodide";
 
+/**
+ * Configuration for initializing a Python worker.
+ */
 export interface PythonWorkerConfig {
+  /** Human-readable name for logging and debugging. */
   name: string;
+  /** List of standard Pyodide packages to preload (e.g., "pandas", "numpy"). */
   packages: string[];
+  /** List of packages to install via micropip (e.g., from PyPI). */
   pipPackages?: string[];
+  /** A dictionary of virtual files to mount in the worker's filesystem. */
   pythonFiles: Record<string, string>;
+  /** The fully qualified name of the module containing 'handle_request'. */
   mainModule: string; // e.g. "tools.data_lens.main"
 }
 
+/**
+ * Base class for all Python-backed workers in Toolbase.
+ * 
+ * Handles the lifecycle of the Pyodide runtime, virtual filesystem mounting,
+ * package installation, and standardized message handling.
+ * 
+ * To use, create an instance and forward 'self.onmessage' to 'handleMessage'.
+ */
 export class PythonWorkerBase {
   private pyodidePromise: Promise<PyodideInterface> | null = null;
   private config: PythonWorkerConfig;
@@ -15,6 +31,7 @@ export class PythonWorkerBase {
   constructor(config: PythonWorkerConfig) {
     this.config = config;
   }
+
 
   private postInitProgress(message: string): void {
     self.postMessage({ type: "INIT_PROGRESS", message });
@@ -75,6 +92,10 @@ print("Python: ${this.config.name} handle_request imported successfully")
     }
   }
 
+  /**
+   * Returns the singleton Pyodide instance, initializing it if necessary.
+   * @returns A promise that resolves to the PyodideInterface.
+   */
   public getPyodide(): Promise<PyodideInterface> {
     if (!this.pyodidePromise) {
       this.pyodidePromise = this.initialize();
@@ -82,6 +103,12 @@ print("Python: ${this.config.name} handle_request imported successfully")
     return this.pyodidePromise;
   }
 
+  /**
+   * Standardized message handler for Web Worker 'onmessage' events.
+   * Dispatches EXECUTE commands to the Python 'handle_request' function.
+   * 
+   * @param event The message event from the main thread.
+   */
   public async handleMessage(event: MessageEvent) {
     const { type, action, data, id } = event.data;
 

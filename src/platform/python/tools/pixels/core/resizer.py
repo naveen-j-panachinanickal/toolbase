@@ -1,10 +1,28 @@
-from PIL import Image
+from PIL import Image  # type: ignore (installed in Pyodide at runtime)
 from .shared import load_image, save_image
 
 
 def resize_image(data):
     """
-    Resizes an image to specific dimensions.
+    Resizes an image using the Pillow (PIL) library.
+
+    Supports two modes:
+    1. 'stretch': Forcefully resizes image to target dimensions.
+    2. 'contain': Fits the image within target dimensions while preserving 
+       aspect ratio, filling the remaining space with a background color.
+
+    Args:
+        data (dict): A dictionary containing:
+            - image_data (bytes): Raw image bytes.
+            - width (int): Target width.
+            - height (int): Target height.
+            - format (str): Target format (JPEG, PNG, WEBP).
+            - quality (int): Output quality (0-100).
+            - mode (str): Resizing strategy ('stretch' or 'contain').
+            - fill_color (str): Hex color (e.g. '#FFFFFF') or 'transparent'.
+
+    Returns:
+        bytes: The processed image bytes, or an ERROR string on failure.
     """
     try:
         image_bytes = bytes(data.get("image_data"))

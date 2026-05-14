@@ -83,28 +83,33 @@ export const TIPToolRegistry = {
   // ── Discovery ───────────────────────────────────────────────────────────────
 
 
-  /** Find all tools that declare the given content type in their `consumes` list. */
+  /**
+   * Find all tools that declare the given content type in their `consumes` list.
+   * @param contentType - The type to search for.
+   * @returns Array of matching tools.
+   */
   findConsumers(contentType: TIPContentType): TIPTool[] {
     return this.getAll().filter((t) => t.consumes.includes(contentType));
   },
 
-  /** Find all tools that declare the given content type in their `produces` list. */
+  /**
+   * Find all tools that declare the given content type in their `produces` list.
+   * @param contentType - The type to search for.
+   * @returns Array of matching tools.
+   */
   findProducers(contentType: TIPContentType): TIPTool[] {
     return this.getAll().filter((t) => t.produces.includes(contentType));
   },
 
   /**
-   * THE STEP SELECTOR FUNCTION.
+   * The Step Selector function.
    *
-   * Given the current output content type, which tools can come next?
-   * Checks both:
-   *  1. Direct compatibility: tool.consumes.includes(currentContentType)
-   *  2. Via transformer: canTransform(currentContentType, accepted) for any accepted type
+   * Given the current output content type, identifies which tools can be used next.
+   * Considers both direct compatibility and transformer-based compatibility.
    *
-   * Powers the step selector in the Pipeline Builder UI.
-   *
-   * @param currentContentType - The contentType the previous step produced
-   * @param canTransform       - Function from transformers.ts (injected to avoid circular deps)
+   * @param currentContentType - The contentType produced by the previous step.
+   * @param canTransform - A function to check if a content type can be transformed to another.
+   * @returns Array of compatible tools.
    */
   findNextSteps(
     currentContentType: TIPContentType,

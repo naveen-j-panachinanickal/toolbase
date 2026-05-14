@@ -2,12 +2,19 @@ import { ToolCardProps } from "@/shared/types/tool-search";
 import { TOOLS } from "@/config/tools.registry";
 
 /**
- * Filters tools based on search query against title, description, long description, and tags.
- * Supports tokenized matching (e.g., "json formator" matches "json" and partially matches "formatter").
+ * Filters and scores tools based on a search query.
  * 
- * @param tools Array of tools to search
- * @param query Search query string
- * @returns Filtered array of tools sorted by relevance
+ * Performs a deep search against titles, descriptions, and tags. 
+ * Implements a weighted scoring system:
+ * - Exact phrase match: Highest priority (+50)
+ * - Title match: High priority (+10)
+ * - Tag match: Medium priority (+8)
+ * - Description match: Low priority (+5)
+ * - Prefix/Typo tolerance: Minimal boost (+1)
+ *
+ * @param tools - Array of tool card props to search through.
+ * @param query - The search string.
+ * @returns Filtered array of tools, sorted by relevance score.
  */
 export const searchTools = (tools: ToolCardProps[], query: string): ToolCardProps[] => {
     const trimmedQuery = query.trim().toLowerCase();

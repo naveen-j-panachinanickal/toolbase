@@ -39,18 +39,20 @@ export type TIPContentType = (typeof TIP_CONTENT_TYPES)[number];
 export type { TIPVersion };
 export { TIP_VERSION };
 
-// ─── Payload ──────────────────────────────────────────────────────────────────
-// A single unit of data flowing through the protocol.
-// Always a Blob. Always has a contentType. Always has meta.
-
+/**
+ * A single unit of data flowing through the TIP protocol.
+ * 
+ * Always backed by a Blob to ensure binary safety and memory efficiency 
+ * (transferable between threads).
+ */
 export interface TIPPayload {
-  /** What kind of data this is */
+  /** The standard MIME type of this payload. */
   contentType: TIPContentType;
 
-  /** The data itself — always a Blob */
+  /** The binary data itself. */
   data: Blob;
 
-  /** Metadata about this payload */
+  /** Associated metadata for this specific payload. */
   meta: TIPPayloadMeta;
 }
 
@@ -77,22 +79,23 @@ export interface TIPPayloadMeta {
   extra?: Record<string, unknown>;
 }
 
-// ─── Bundle ───────────────────────────────────────────────────────────────────
-// Tools always receive and return a TIPBundle.
-// Single file = bundle of one. This eliminates all "one vs many" branching.
-
+/**
+ * The standard input and output unit for all TIP tools.
+ * 
+ * Tools always receive and return a TIPBundle. This simplifies tool 
+ * implementation by removing the need to handle single vs multiple files.
+ */
 export interface TIPBundle {
-  /** Always an array. Single file = array of length 1. */
+  /** An array of payloads. A single file is represented as an array of length 1. */
   payloads: TIPPayload[];
 
   /**
-   * The dominant content type of this bundle.
-   * Typically the type of all payloads (or the first payload for mixed bundles).
-   * Used by the engine to check tool compatibility before invocation.
+   * The primary content type of the bundle.
+   * Used for compatibility checks during pipeline orchestration.
    */
   contentType: TIPContentType;
 
-  /** Bundle-level metadata */
+  /** Bundle-level metadata (total size, count, etc). */
   meta: TIPBundleMeta;
 }
 
@@ -210,54 +213,47 @@ export interface TIPHooks {
   signal: AbortSignal;
 }
 
-// ─── The Tool Interface ───────────────────────────────────────────────────────
-// Every tool in Toolbase implements exactly this interface.
-// This is the entire contract. Nothing more is required.
-
+/**
+ * The standard interface for all tools in Toolbase.
+ * 
+ * Every tool must implement this contract to be eligible for 
+ * registration and usage in the Pipeline Builder.
+ */
 export interface TIPTool {
   /**
-   * Unique identifier — use kebab-case with a namespace prefix.
-   * Examples: 'magic-pdf/compress', 'pixels/resize', 'base64/encode'
+   * Unique identifier for the tool.
+   * Recommended format: 'namespace/operation' (e.g., 'pixels/resize').
    */
   id: string;
 
-  /** Human-readable name shown in the UI */
+  /** Human-readable display name. */
   name: string;
 
-  /** One-sentence description of what this tool does */
+  /** A concise description of the tool's purpose. */
   description: string;
 
-  /**
-   * Content types this tool can receive as input.
-   * At runtime the engine checks: bundle.contentType ∈ tool.consumes
-   */
+  /** The set of content types this tool can process as input. */
   consumes: TIPContentType[];
 
-  /**
-   * Content types this tool will produce as output.
-   * Used by the registry to discover compatible next steps.
-   */
+  /** The set of content types this tool produces as output. */
   produces: TIPContentType[];
 
-  /** Whether this tool is optimized for mobile devices */
+  /** Whether the tool is optimized for mobile usage. */
   mobileOptimized: boolean;
 
   /**
-   * Config schema — drives the auto-rendered config UI.
-   * Use an empty fields array if the tool has no configuration.
+   * Defines the user-configurable settings for this tool.
+   * Powers the auto-generated configuration UI in the Pipeline.
    */
   configSchema: TIPConfigSchema;
 
   /**
-   * The invocation function. This is where the tool does its work.
-   *
-   * Rules:
-   *  - Receives a TIPBundle, returns a TIPBundle (always async)
-   *  - Must respect hooks.signal.aborted (check before each async op)
-   *  - Must call hooks.onProgress(0..100) to report progress
-   *  - Must NOT make network requests
-   *  - Must NOT read/write the filesystem
-   *  - All computation must stay client-side
+   * The core execution logic of the tool.
+   * 
+   * @param input - The input bundle containing one or more payloads.
+   * @param config - User-provided settings based on the configSchema.
+   * @param hooks - Runtime hooks for progress reporting and cancellation.
+   * @returns A promise resolving to the output bundle.
    */
   invoke(
     input: TIPBundle,
@@ -265,20 +261,19 @@ export interface TIPTool {
     hooks: TIPHooks
   ): Promise<TIPBundle>;
 
-  // ── Interactive Node Protocol (optional) ──────────────────────────────────────
-
   /**
-   * When true, this tool requires user interaction before it can execute.
-   * The pipeline ToolNode shows a "Configure" button and an amber indicator
-   * until the user has confirmed the interaction.
+   * Interactive Node Protocol (INP)
+   * 
+   * Set to true if the tool requires manual user intervention 
+   * (e.g., cropping, selecting pages) before it can execute.
    */
   interactable?: true;
 
   /**
    * Lazily loads the interaction component for this tool.
-   * The component receives TIPInteractionProps and calls onConfirm / onCancel.
-   * Only present when interactable === true.
+   * Only used if interactable is true.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getInteractionComponent?: () => Promise<(props: TIPInteractionProps) => any>;
 }
+

@@ -4,13 +4,18 @@ import { TIPToolRegistry } from '@/platform/tip/registry';
 import { createBundle, createPayload } from '@/platform/tip/bundle';
 
 /**
- * useTIPTool — The Universal Tool Runner Hook
+ * A React hook for executing a single TIP tool with full lifecycle management.
  * 
- * This hook is used by Standalone UI component pages (e.g. /tools/pixels)
- * to execute the exact same tool pipeline logic that the Builder Engine runs.
- * 
- * It abstracts away the complexity of building a TIPBundle, reporting progress,
- * handling aborts, and returning a final Blob or File output.
+ * This is the primary hook used by standalone tool pages (e.g., Image Resizer, 
+ * Format Converter) to run engine-agnostic tool definitions. It handles:
+ * - Converting raw browser Files into TIPBundles.
+ * - Enforcing input size limits (500MB/file, 2GB total) to prevent browser crashes.
+ * - Managing execution state (isProcessing, progress, error).
+ * - Providing cancellation support via AbortController.
+ * - Re-wrapping TIP results back into browser File objects for easy download/preview.
+ *
+ * @param toolId - The unique ID of the tool to load from the registry.
+ * @returns An object containing execution state and the `execute` method.
  */
 export function useTIPTool(toolId: string) {
     const [isProcessing, setIsProcessing] = useState(false);

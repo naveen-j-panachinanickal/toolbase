@@ -2,15 +2,24 @@ import React, { useMemo } from "react";
 import { marked } from "marked";
 import { cn } from "@/shared/lib/utils";
 
+/**
+ * Props for the Markdown component.
+ */
 interface MarkdownProps {
+    /** The raw markdown string to render. */
     content: string;
+    /** Optional CSS class for the container. */
     className?: string;
 }
 
 /**
- * A robust Markdown renderer using the 'marked' library.
- * Designed to fit the Toolbase design system with support for 
- * code blocks, lists, and bold text.
+ * A robust Markdown renderer tailored for the Toolbase design system.
+ * 
+ * Uses the 'marked' library with GitHub Flavored Markdown (GFM) support.
+ * Styles are applied via Tailwind prose utilities and custom CSS variable 
+ * overrides to ensure consistency with the app's macOS-inspired aesthetic.
+ *
+ * @param props - Component configuration properties.
  */
 export function Markdown({ content, className }: MarkdownProps) {
     const html = useMemo(() => {

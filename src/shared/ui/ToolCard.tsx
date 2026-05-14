@@ -11,6 +11,17 @@ import { FavoriteButton } from './FavoriteButton';
 import { useToolPreferences } from '@/shared/hooks/useToolPreferences';
 import { m } from 'framer-motion';
 
+/**
+ * A highly interactive card component representing a single tool.
+ * 
+ * Featured on the home grid, this component provides:
+ * - Quick access to favorite a tool.
+ * - Pinning functionality to the global navigation dock.
+ * - Animated hover and tap states using Framer Motion.
+ * - Icon rendering with macOS-style rounded corners and drop shadows.
+ *
+ * @param props - Includes tool title, route, icon source, and optional toolId.
+ */
 const ToolCard: React.FC<ToolCardProps & { priority?: boolean }> = ({ title, route, icon, toolId, priority }) => {
     const { isPinned, togglePin } = usePinnedTools();
     const { isFavorite } = useToolPreferences();

@@ -11,12 +11,13 @@ import type { TIPBundle, TIPContentType, TIPPayload } from './protocol';
 import { TIPError } from './errors';
 
 /**
- * Create a TIPPayload from a Blob.
+ * Creates a TIPPayload from a Blob.
  *
- * @param data       - The raw Blob (or File, which extends Blob)
- * @param contentType - The TIP content type for this data
- * @param filename    - Original or derived filename (shown in UI, used for downloads)
- * @param extra       - Optional tool-specific metadata stored in payload.meta.extra
+ * @param data - The raw Blob (or File) containing the data.
+ * @param contentType - The standard TIP content type for this data.
+ * @param filename - The filename to associate with this payload.
+ * @param extra - Optional tool-specific metadata.
+ * @returns A new TIPPayload instance.
  */
 export function createPayload(
   data: Blob,
@@ -38,11 +39,11 @@ export function createPayload(
 }
 
 /**
- * Wrap one or more payloads into a TIPBundle.
+ * Wraps one or more payloads into a TIPBundle.
  *
- * @param payloads    - Array of TIPPayloads to bundle (must be non-empty)
- * @param contentType - Override the dominant content type.
- *                      Defaults to the first payload's contentType.
+ * @param payloads - Array of TIPPayloads to bundle.
+ * @param contentType - Optional override for the bundle's dominant content type.
+ * @returns A new TIPBundle instance.
  */
 export function createBundle(
   payloads: TIPPayload[],
@@ -64,8 +65,13 @@ export function createBundle(
 }
 
 /**
- * Create a TIPBundle from a single File (e.g., from a file input or drop zone).
- * This is the primary entry point for user-uploaded files.
+ * Creates a TIPBundle from a single File.
+ * 
+ * This is the primary entry point for user-uploaded files or files 
+ * obtained from the device's file system.
+ * 
+ * @param file - The file to bundle.
+ * @returns A TIPBundle containing one payload.
  */
 export function bundleFromFile(file: File): TIPBundle {
   const contentType: TIPContentType =
@@ -74,8 +80,13 @@ export function bundleFromFile(file: File): TIPBundle {
 }
 
 /**
- * Create a TIPBundle from multiple Files.
- * All files are bundled together; the dominant type is inferred from the first file.
+ * Creates a TIPBundle from multiple Files.
+ * 
+ * All files are bundled together. The dominant content type is inferred 
+ * from the first file in the array.
+ * 
+ * @param files - The array of files to bundle.
+ * @returns A TIPBundle containing multiple payloads.
  */
 export function bundleFromFiles(files: File[]): TIPBundle {
   const payloads = files.map((f) =>
@@ -89,10 +100,11 @@ export function bundleFromFiles(files: File[]): TIPBundle {
 }
 
 /**
- * Extract the single Blob from a bundle that must contain exactly one payload.
- * Throws if the bundle has zero or more than one payload.
- *
- * @throws TIPError with code 'EMPTY_BUNDLE' if bundle.payloads.length !== 1
+ * Extracts the single Blob from a bundle that must contain exactly one payload.
+ * 
+ * @param bundle - The bundle to unwrap.
+ * @returns The underlying Blob data.
+ * @throws {TIPError} with code 'EMPTY_BUNDLE' if bundle.payloads.length !== 1.
  */
 export function unwrapSingle(bundle: TIPBundle): Blob {
   if (bundle.payloads.length !== 1) {
@@ -105,12 +117,14 @@ export function unwrapSingle(bundle: TIPBundle): Blob {
 }
 
 /**
- * Stamp a bundle with producer info and timing after successful invocation.
- * Called by the engine — tool implementers do NOT need to call this.
+ * Stamps a bundle with producer information and execution timing.
+ * 
+ * This is typically called by the engine after a tool invocation succeeds.
  *
- * @param bundle     - The output bundle returned by tool.invoke()
- * @param producedBy - The tool.id that created this bundle
- * @param durationMs - Wall-clock time of the tool.invoke() call
+ * @param bundle - The output bundle to stamp.
+ * @param producedBy - The ID of the tool that produced this bundle.
+ * @param durationMs - The duration of the tool execution in milliseconds.
+ * @returns A new TIPBundle with updated metadata on each payload.
  */
 export function stampBundle(
   bundle: TIPBundle,

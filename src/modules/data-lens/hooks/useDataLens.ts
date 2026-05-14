@@ -25,42 +25,57 @@ export interface QueryResult {
     message?: string;
 }
 
+/**
+ * The interface for the Data Lens hook, providing methods for ETL and data analysis.
+ */
 export interface UseDataLensResult extends EtlState {
+    /**
+     * Loads a file into the in-memory database.
+     * Supports CSV, JSON, and XLSX.
+     * 
+     * @param file - The browser File object to ingest.
+     * @returns A promise resolving to the ingestion result.
+     */
     loadFile: (file: File) => Promise<any>;
+    /**
+     * Executes a SQL query against the loaded tables (DuckDB-WASM).
+     * 
+     * @param query - The SQL string to execute.
+     * @returns A promise resolving to the query result.
+     */
     runSql: (query: string) => Promise<any>;
+    /**
+     * Executes Python code against the data (Pyodide).
+     * 
+     * @param code - The Python script to execute.
+     * @returns A promise resolving to the execution result.
+     */
     runPython: (code: string) => Promise<any>;
+    /** Refreshes the list of available table schemas from the worker. */
     refreshSchemas: () => Promise<any>;
+    /** Deletes a specific table from the in-memory store. */
     deleteTable: (tableName: string) => Promise<any>;
+    /** Clears all tables and results from the workspace. */
     clearAllTables: () => Promise<void>;
+    /** Clears the current SQL/Python query result from the state. */
     clearQueryResult: () => void;
+    /** Retrieves the raw JSON representation of a table. */
     getRawJson: (tableName: string) => Promise<any>;
+    /** Executes a JSON query (e.g., JMESPath) against a table. */
     queryJson: (tableName: string, query: string) => Promise<any>;
+    /** Convenience method to select all data from a table (capped at 1000 rows). */
     selectTableData: (tableName: string) => Promise<any>;
 }
 
-// Persistent Worker Singleton
-let workerInstance: Worker | null = null;
-let workerReadyPromise: Promise<boolean> | null = null;
-
-function getDataLensWorker() {
-    if (!workerInstance) {
-        console.log("Worker Manager: Initializing DataLens Worker (Singleton)...");
-        workerInstance = new Worker(new URL('../workers/data-lens.worker.ts', import.meta.url));
-
-        workerReadyPromise = new Promise((resolve) => {
-            const tempListener = (event: MessageEvent) => {
-                if (event.data.type === 'READY') {
-                    console.log("Worker Manager: DataLens Worker Ready");
-                    workerInstance?.removeEventListener('message', tempListener);
-                    resolve(true);
-                }
-            };
-            workerInstance?.addEventListener('message', tempListener);
-        });
-    }
-    return { worker: workerInstance, ready: workerReadyPromise };
-}
-
+/**
+ * A React hook that manages a persistent background worker for data analysis.
+ * 
+ * It coordinates a singleton worker instance that runs DuckDB and Pyodide,
+ * allowing for high-performance data processing (SQL, Python, JSON) 
+ * directly in the browser without server round-trips.
+ *
+ * @returns {UseDataLensResult} State and methods for interacting with the data engine.
+ */
 export function useDataLens(): UseDataLensResult {
     const [isReady, setIsReady] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);

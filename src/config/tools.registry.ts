@@ -25,6 +25,12 @@ import { noteVaultConfig } from "./tools/note-vault";
 // REGISTERED TOOLS
 // ============================================================
 
+/**
+ * The master list of all tools registered in the Toolbase platform.
+ * 
+ * Each tool entry defines metadata used for discovery, UI rendering, 
+ * and technical capability signaling (e.g., WASM/Python power).
+ */
 export const TOOLS: ToolMeta[] = [
   noteVaultConfig,
   magicPdfConfig,
@@ -47,33 +53,62 @@ export const TOOLS: ToolMeta[] = [
 // HELPERS — use these throughout the app, never filter TOOLS directly
 // ============================================================
 
-/** Get all tools */
+/**
+ * Returns the complete list of registered tools.
+ * @returns {ToolMeta[]} The full tool catalog.
+ */
 export const getAllTools = (): ToolMeta[] => TOOLS;
 
-/** Get a single tool by ID */
+/**
+ * Retrieves a tool by its unique identifier.
+ * @param id - The unique ID of the tool (e.g., 'pixels/resize').
+ * @returns {ToolMeta | undefined} The tool metadata if found.
+ */
 export const getToolById = (id: string): ToolMeta | undefined =>
   TOOLS.find((tool) => tool.id === id);
 
-/** Get tools by category */
+/**
+ * Filters the registry to find tools belonging to a specific category.
+ * @param category - The category to filter by (e.g., 'Data', 'Images').
+ * @returns {ToolMeta[]} Matching tools.
+ */
 export const getToolsByCategory = (category: ToolCategory): ToolMeta[] =>
   TOOLS.filter((tool) => tool.category === category);
 
-/** Get featured tools */
+/**
+ * Returns tools marked as 'featured' for landing page visibility.
+ * @returns {ToolMeta[]} Featured tools.
+ */
 export const getFeaturedTools = (): ToolMeta[] =>
   TOOLS.filter((tool) => tool.isFeatured);
 
-/** Get WASM-powered tools */
+/**
+ * Returns tools that utilize WebAssembly for heavy lifting.
+ * @returns {ToolMeta[]} WASM-powered tools.
+ */
 export const getWasmTools = (): ToolMeta[] =>
   TOOLS.filter((tool) => tool.wasmPowered);
 
-/** Get all unique categories that have at least one tool */
+/**
+ * Retrieves all unique categories that contain at least one registered tool.
+ * @returns {ToolCategory[]} Active tool categories.
+ */
 export const getActiveCategories = (): ToolCategory[] =>
   [...new Set(TOOLS.map((tool) => tool.category))];
 
 /**
- * Search tools by query — searches name, description, long description, and tags.
- * Supports tokenized matching and basic typo tolerance.
- * This is the canonical search function used by the app's CommandPalette.
+ * Performs a weighted heuristic search across the tool registry.
+ * 
+ * Searches the following fields in order of descending importance:
+ * 1. Name (exact match or prefix)
+ * 2. Tags (exact match or prefix)
+ * 3. Description (short and long)
+ * 
+ * Supports tokenized matching (multi-word queries) and basic typo tolerance 
+ * via 3-character prefix matching.
+ *
+ * @param query - The raw search string from the user.
+ * @returns {ToolMeta[]} A ranked list of matching tools.
  */
 export const searchToolsFromRegistry = (query: string): ToolMeta[] => {
   const trimmedQuery = query.toLowerCase().trim();
@@ -91,10 +126,12 @@ export const searchToolsFromRegistry = (query: string): ToolMeta[] => {
       ...tool.tags.map(t => t.toLowerCase())
     ].join(' ');
 
+    // Exact string match bonus
     if (searchableText.includes(trimmedQuery)) {
       score += 50;
     }
 
+    // Tokenized scoring
     for (const token of queryTokens) {
       if (tool.name.toLowerCase().includes(token)) {
         score += 10;
@@ -105,6 +142,7 @@ export const searchToolsFromRegistry = (query: string): ToolMeta[] => {
       } else if (tool.longDescription?.toLowerCase().includes(token)) {
         score += 2;
       } else if (token.length >= 3) {
+        // Prefix matching for basic typo tolerance
         const prefix = token.slice(0, 3);
         if (tool.name.toLowerCase().split(/\s+/).some(w => w.startsWith(prefix))) {
           score += 1;

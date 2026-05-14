@@ -1,9 +1,9 @@
-import pandas as pd
+import pandas as pd  # type: ignore (installed in Pyodide at runtime)
 import io
 import json
 from .state import DATA_STORE, JSON_STORE
 from .utils import sanitize_table_name, df_to_js
-import numpy as np
+import numpy as np  # type: ignore (installed in Pyodide at runtime)
 
 def load_file(data):
     try:

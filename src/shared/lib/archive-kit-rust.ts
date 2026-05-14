@@ -63,6 +63,10 @@ async function loadRustApi(): Promise<ArchiveKitRustApi> {
   return rustApiPromise;
 }
 
+/**
+ * Checks if the Rust-WASM Archive Kit runtime is successfully loaded and available.
+ * @returns A promise resolving to true if available.
+ */
 export async function isArchiveKitRustAvailable(): Promise<boolean> {
   try {
     await loadRustApi();
@@ -72,6 +76,17 @@ export async function isArchiveKitRustAvailable(): Promise<boolean> {
   }
 }
 
+/**
+ * Creates an archive using the high-performance Rust engine.
+ * 
+ * Uses a binary-v2 bridge to minimize memory overhead by avoiding 
+ * Base64 encoding for the file contents.
+ *
+ * @param format - Target archive format (zip, tar, tgz).
+ * @param files - Array of files to include in the archive.
+ * @param options - Optional settings for compression and passwords.
+ * @returns A promise resolving to the binary content of the created archive.
+ */
 export async function createArchiveRust(
   format: ArchiveFormat,
   files: ArchiveInputFile[],
@@ -103,6 +118,13 @@ export async function createArchiveRust(
   );
 }
 
+/**
+ * Lists the contents of an archive using the Rust engine.
+ * 
+ * @param format - The format of the source archive.
+ * @param bytes - The binary content of the archive.
+ * @returns A promise resolving to an array of metadata entries for each file.
+ */
 export async function listArchiveEntriesRust(
   format: ArchiveFormat,
   bytes: Uint8Array
@@ -127,6 +149,14 @@ export async function listArchiveEntriesRust(
   }));
 }
 
+/**
+ * Extracts all files from an archive using the Rust engine.
+ * 
+ * @param format - The format of the source archive.
+ * @param bytes - The binary content of the archive.
+ * @param options - Optional settings (e.g., password for encrypted archives).
+ * @returns A promise resolving to an array of extracted files.
+ */
 export async function extractArchiveRust(
   format: ArchiveFormat,
   bytes: Uint8Array,

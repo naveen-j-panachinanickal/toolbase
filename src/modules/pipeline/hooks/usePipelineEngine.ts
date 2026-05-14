@@ -25,44 +25,44 @@ import type { Node } from '@xyflow/react';
 
 // ─── Extended state with output ───────────────────────────────────────────────
 
+/**
+ * The public interface returned by the usePipelineEngine hook.
+ */
 interface UsePipelineEngineReturn {
+  /** Reactive state containing the status of every step in the pipeline. */
   state: PipelineEngineState;
-  /** The final TIPBundle produced after successful completion */
+  /** The final TIPBundle produced after successful completion. */
   output: TIPBundle | null;
   /**
-   * Start the pipeline.
-   * @param steps   - Ordered pipeline steps
-   * @param file    - The file from the FileInputNode (used as the initial bundle)
+   * Starts the pipeline execution.
+   * 
+   * @param steps - Ordered list of tools and their configurations.
+   * @param file - The initial file to process (converted to a TIPBundle).
+   * @returns A promise that resolves when the pipeline completes or fails.
    */
   run: (steps: PipelineStep[], file: File) => Promise<void>;
-  /** Abort the running pipeline (honours AbortSignal in each TIPTool) */
+  /** Aborts the currently running pipeline. */
   cancel: () => void;
-  /** Reset to idle state (clears output and error) */
+  /** Resets the engine to the idle state and clears all results. */
   reset: () => void;
+  /** Whether the pipeline is currently paused. */
+  isPaused: boolean;
+  /** Pauses the pipeline execution at the next available breakpoint. */
+  pause: () => void;
+  /** Resumes a paused pipeline. */
+  resume: () => void;
 }
 
-// ─── Initial state factory ────────────────────────────────────────────────────
-
-function makeInitialStepStates(count: number): StepState[] {
-  return Array.from({ length: count }, () => ({
-    status: 'idle' as const,
-    progress: 0,
-    message: '',
-    durationMs: 0,
-    error: null,
-  }));
-}
-
-const IDLE_STATE: PipelineEngineState = {
-  status: 'idle',
-  currentStepIndex: -1,
-  steps: [],
-  error: null,
-};
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-export function usePipelineEngine(): UsePipelineEngineReturn & { isPaused: boolean; pause: () => void; resume: () => void } {
+/**
+ * React hook that orchestrates the execution of a TIP pipeline.
+ *
+ * This hook acts as a bridge between the pure TIPEngine logic and the React UI.
+ * It manages real-time status updates, progress reporting, and user-initiated
+ * control flow (start, cancel, pause, resume).
+ *
+ * @returns {UsePipelineEngineReturn} Methods and state to control the pipeline.
+ */
+export function usePipelineEngine(): UsePipelineEngineReturn {
   const [state, setState] = useState<PipelineEngineState>(IDLE_STATE);
   const [output, setOutput] = useState<TIPBundle | null>(null);
   const controllerRef = useRef<AbortController | null>(null);

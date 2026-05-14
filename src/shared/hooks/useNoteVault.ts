@@ -27,6 +27,17 @@ export async function getPinnedNotes(): Promise<Note[]> {
   }
 }
 
+/**
+ * React hook for managing notes and collections in a local IndexedDB-backed vault.
+ * 
+ * Provides a complete persistence layer for the Note Vault module, including:
+ * - Automatic IndexedDB schema migration.
+ * - Reactive state for notes and collections.
+ * - Automatic note revision history (max 10 entries).
+ * - Collection management with referential integrity (notes default to 'default' if their collection is deleted).
+ *
+ * @returns State and methods for note and collection CRUD operations.
+ */
 export function useNoteVault() {
   const [db, setDb] = useState<IDBPDatabase | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);

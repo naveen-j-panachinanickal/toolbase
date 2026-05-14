@@ -13,6 +13,18 @@ export { validateData } from "./format-studio/validators";
 export { parseToObject } from "./format-studio/shared";
 export { getFormatCapabilities } from "./format-studio/formats";
 
+/**
+ * Converts data from one format to another (e.g., JSON to YAML).
+ * 
+ * Supports parsing, optional key sorting, and serialization with 
+ * formatting options.
+ *
+ * @param inputFormat - The format of the input string.
+ * @param outputFormat - The target format for the output.
+ * @param input - The raw input data.
+ * @param options - Transpilation options (e.g., sortKeys).
+ * @returns The converted data string.
+ */
 export function convertFormat(
   inputFormat: DataFormat,
   outputFormat: DataFormat,
@@ -24,6 +36,15 @@ export function convertFormat(
   return serializeFromObject(outputFormat, transformed, options, "beautify");
 }
 
+/**
+ * Generates a human-readable Markdown documentation section for a given data object.
+ * 
+ * Recursively inspects the structure to infer types and describe nodes.
+ *
+ * @param json - The data object to document.
+ * @param rootName - The name of the root node (e.g., 'User').
+ * @returns A formatted Markdown string.
+ */
 export function generateMarkdownDoc(json: unknown, rootName: string) {
   const sections: string[] = [];
 
@@ -176,6 +197,15 @@ function diffWalk(left: unknown, right: unknown, path: string, out: DiffEntry[])
   }
 }
 
+/**
+ * Compares two objects and returns a list of differences.
+ * 
+ * Detects additions, removals, value changes, and type mismatches.
+ *
+ * @param left - The original object.
+ * @param right - The modified object.
+ * @returns An array of DiffEntry objects.
+ */
 export function diffObjects(left: unknown, right: unknown): DiffEntry[] {
   const out: DiffEntry[] = [];
   diffWalk(left, right, "$", out);
@@ -223,6 +253,13 @@ function shapeToMarkdownLines(shape: SchemaShape, path: string, lines: string[])
   }
 }
 
+/**
+ * Infers a simplified schema summary in Markdown format from a given value.
+ *
+ * @param value - The value to inspect.
+ * @param rootName - Human-readable name for the root of the schema.
+ * @returns A Markdown summary of the inferred schema.
+ */
 export function generateSchemaSummary(value: unknown, rootName: string): string {
   const shape = inferSchemaShape(value);
   const lines = [`# ${rootName || "Payload"} Schema Summary`, "", `- \`${rootName || "payload"}\`: ${shape.type}`];
@@ -291,6 +328,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Flattens a nested JSON object into a single-level record with dot-separated keys.
+ * 
+ * @param value - The nested object or array to flatten.
+ * @param options - Configuration (e.g., custom separator).
+ * @returns A flat record of keys and values.
+ */
 export function flattenJson(value: unknown, options: FlattenOptions = {}) {
   const separator = options.separator ?? ".";
   const out: Record<string, unknown> = {};
@@ -317,6 +361,13 @@ export function flattenJson(value: unknown, options: FlattenOptions = {}) {
   return out;
 }
 
+/**
+ * Reconstructs a nested JSON object from a flat record of dot-separated keys.
+ * 
+ * @param flat - The flat record to unflatten.
+ * @param options - Configuration (e.g., custom separator).
+ * @returns The reconstructed nested object.
+ */
 export function unflattenJson(flat: Record<string, unknown>, options: FlattenOptions = {}) {
   const separator = options.separator ?? ".";
   const root: Record<string, unknown> = {};

@@ -1,5 +1,8 @@
 import { StaticImageData } from "next/image";
 
+/**
+ * Represents the high-level functional categories for tools in the platform.
+ */
 export type ToolCategory =
   | 'pdf'
   | 'image'
@@ -11,8 +14,17 @@ export type ToolCategory =
   | 'developer'
   | 'ai';
 
+/**
+ * Indicates the stability and readiness of a tool.
+ */
 export type ToolStatus = 'stable' | 'beta' | 'experimental';
 
+/**
+ * The master metadata schema for any tool registered in the platform.
+ * 
+ * This object is used by the Home Grid for rendering, the Search Engine 
+ * for discovery, and the Pipeline Builder for connecting tool chains.
+ */
 export interface ToolMeta {
   /** Unique identifier — matches the folder name in src/app/tools/ */
   id: string;
@@ -34,9 +46,9 @@ export interface ToolMeta {
   isNew?: boolean;
   /** Featured on home/landing page */
   isFeatured?: boolean;
-  /** Shows WASM badge — communicates performance and privacy */
+  /** Indicates the tool runs high-performance WASM logic locally. */
   wasmPowered?: boolean;
-  /** Subset of wasmPowered — powered by Python via Pyodide */
+  /** Indicates the tool runs Python logic via Pyodide in the browser. */
   pythonPowered?: boolean;
   /** Stability status */
   status: ToolStatus;
@@ -47,46 +59,57 @@ export interface ToolMeta {
   /** GitHub username of the contributor who built this tool */
   author?: string;
   /** 
-   * If defined, this tool supports the TIP Protocol and can be chained
-   * in the Pipeline Builder. An array is used because some UI tools
-   * (like Magic PDF) expose multiple distinct TIP-operations.
+   * TIP Protocol Integration Configuration.
+   * 
+   * If defined, this tool can participate in the Pipeline Builder.
+   * A single UI tool can expose multiple distinct TIP-compliant operations.
    */
   tip?: {
-    id: string; // e.g. "magic-pdf/compress"
+    /** Unique ID for the operation (e.g. "magic-pdf/compress") */
+    id: string;
+    /** Human-readable name for the operation node */
     name: string;
+    /** Description for the operation node */
     description: string;
+    /** MIME types this operation can accept as input */
     consumes: import('@/platform/tip').TIPContentType[];
+    /** MIME types this operation produces as output */
     produces: import('@/platform/tip').TIPContentType[];
+    /** Declarative schema for tool settings */
     configSchema: import('@/platform/tip').TIPConfigSchema;
     /**
-     * DYNAMIC IMPORT of the execution logic. 
-     * Keeps the registry lightweight.
+     * Lazily loads the execution logic (the tool's `invoke` method).
      */
     getExecutor: () => Promise<(input: import('@/platform/tip').TIPBundle, config: import('@/platform/tip').TIPConfig, hooks: import('@/platform/tip').TIPHooks) => Promise<import('@/platform/tip').TIPBundle>>;
     /** Whether this specific operation is optimized for mobile */
     mobileOptimized: boolean;
     /**
-     * INP: when true, this operation requires user interaction before execution.
-     * The pipeline ToolNode shows a Configure button and amber indicator.
+     * If true, this operation requires user interaction/configuration 
+     * before it can be executed in a pipeline.
      */
     interactable?: true;
     /**
-     * INP: lazily loads the interaction component.
-     * Only present when interactable === true.
+     * Lazily loads the React component used for user interaction.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getInteractionComponent?: () => Promise<(props: import('@/platform/tip').TIPInteractionProps) => any>;
   }[];
 }
 
-
+/**
+ * Props for the ToolCard React component.
+ */
 export interface ToolCardProps {
+    /** The tool's display name */
     title: string;
-    route: string; // Must be same as tool folder name
+    /** The navigation route */
+    route: string;
+    /** The tool's icon or thumbnail */
     icon: StaticImageData | string;
+    /** Secondary metadata labels shown on the card */
     metadata: string[];
-    /** Tool registry ID used for favouriting and recents tracking */
+    /** Registry ID for tracking preferences */
     toolId?: string;
-    /** Internal tool folder name — kept for BottomNav compat */
+    /** legacy field for bottom navigation compatibility */
     toolFolderName?: string;
 }

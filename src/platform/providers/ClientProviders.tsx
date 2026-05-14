@@ -13,6 +13,21 @@ import { LazyMotion, domAnimation } from 'framer-motion';
 
 import { CapabilityProvider } from "./CapabilityProvider";
 
+/**
+ * The root provider component for the client-side application.
+ * 
+ * This component orchestrates the global context tree and initialization 
+ * logic for the entire Toolbase platform:
+ * - Theme Management (Dark/Light/Auto).
+ * - Hardware Capability Detection (WebGPU, WASM Threading).
+ * - Worker Prewarming (Lazy-loading critical background assets).
+ * - AI Assistant State & Overlay.
+ * - Command Palette integration.
+ * - Service Worker registration (PWA support).
+ * - Framer Motion global config (LazyMotion).
+ *
+ * @param props - Contains the application children.
+ */
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (

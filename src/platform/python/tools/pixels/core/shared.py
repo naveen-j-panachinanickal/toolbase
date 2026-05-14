@@ -1,5 +1,5 @@
 import io
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps  # type: ignore (installed in Pyodide at runtime)
 
 # Disable decompression bomb error for large upscales
 Image.MAX_IMAGE_PIXELS = None
