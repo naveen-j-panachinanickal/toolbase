@@ -1,11 +1,12 @@
 import io
 import fitz
 from PIL import Image
-from docx import Document
-from docx.shared import Inches # Fixed missing import
+# Lazy imports for optional features
 
 def pdf_to_word(file_bytes):
     try:
+        from docx import Document
+        from docx.shared import Inches
         doc = fitz.open(stream=bytes(file_bytes), filetype="pdf")
         word_doc = Document()
 
@@ -51,6 +52,7 @@ def pdf_to_word(file_bytes):
 
 def pdf_to_images(file_bytes, dpi=150, img_format="JPEG"):
     try:
+        file_bytes = bytes(file_bytes)
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         images = []
         for page in doc:

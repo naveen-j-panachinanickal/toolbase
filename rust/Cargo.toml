@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "archive-kit",
+  "redact-secrets",
+]
+resolver = "2"

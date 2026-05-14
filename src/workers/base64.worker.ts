@@ -1,90 +1,159 @@
-import { loadPyodide, type PyodideInterface } from "pyodide";
-import { PYTHON_FILES } from "@/python/bundles/base64_tool.bundle";
 import type { Base64Request, Base64Response } from "@/types/base64";
 
-let pyodide: PyodideInterface | null = null;
+/**
+ * Clean up Base64 string by removing data URI prefix and whitespace
+ */
+function cleanBase64(s: string): string {
+    if (s.startsWith("data:")) {
+        const parts = s.split(",", 2);
+        if (parts.length === 2) {
+            s = parts[1];
+        }
+    }
+    return s.replace(/\s/g, '');
+}
 
-async function initPyodide() {
-    if (pyodide) return pyodide;
+/**
+ * UTF-8 safe btoa
+ */
+function utf8_to_b64(str: string): string {
+    return btoa(unescape(encodeURIComponent(str)));
+}
 
-    console.log("Worker: Initializing Pyodide for Base64 tool...");
+/**
+ * UTF-8 safe atob
+ */
+function b64_to_utf8(str: string): string {
+    return decodeURIComponent(escape(atob(str)));
+}
+
+/**
+ * Process Base64 operations
+ */
+function process_data(request: Base64Request): Base64Response {
+    const { mode, data, url_safe, mime_type } = request;
+
     try {
-        pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.2/full/",
-        });
-        console.log("Worker: Pyodide loaded, setting up filesystem...");
+        let result: string | number[] = "";
+        let original_size = 0;
 
-        // Setup the virtual filesystem
-        for (const [filePath, content] of Object.entries(PYTHON_FILES)) {
-            const parts = filePath.split('/');
-            let currentPath = '';
+        if (mode === 'text_encode') {
+            const text = typeof data === 'string' ? data : new TextDecoder().decode(new Uint8Array(data as number[]));
+            original_size = text.length;
+            result = utf8_to_b64(text);
+            
+            if (url_safe) {
+                result = result.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            }
+            
+            if (mime_type) {
+                result = `data:${mime_type};base64,${result}`;
+            }
+        } 
+        else if (mode === 'text_decode') {
+            let encoded = typeof data === 'string' ? data : new TextDecoder().decode(new Uint8Array(data as number[]));
+            encoded = cleanBase64(encoded);
+            original_size = encoded.length;
 
-            // Create directories
-            for (let i = 0; i < parts.length - 1; i++) {
-                currentPath += (currentPath ? '/' : '') + parts[i];
-                try {
-                    pyodide.FS.mkdir(currentPath);
-                } catch (e) {
-                    // Directory might already exist
-                }
+            if (url_safe) {
+                encoded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+                while (encoded.length % 4) encoded += '=';
             }
 
-            // Write file
-            pyodide.FS.writeFile(filePath, content);
+            try {
+                result = b64_to_utf8(encoded);
+            } catch (e) {
+                // If not UTF-8, return as byte array
+                const binary = atob(encoded);
+                result = Array.from(new Uint8Array(binary.length).map((_, i) => binary.charCodeAt(i)));
+            }
+        }
+        else if (mode === 'file_encode') {
+            const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
+            original_size = bytes.length;
+            
+            let binary = "";
+            const chunk_size = 8192;
+            for (let i = 0; i < bytes.length; i += chunk_size) {
+                binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk_size)));
+            }
+            
+            result = btoa(binary);
+
+            if (url_safe) {
+                result = result.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            }
+            
+            if (mime_type) {
+                result = `data:${mime_type};base64,${result}`;
+            }
+        }
+        else if (mode === 'file_decode') {
+            let encoded = typeof data === 'string' ? data : new TextDecoder().decode(new Uint8Array(data as number[]));
+            encoded = cleanBase64(encoded);
+            original_size = encoded.length;
+
+            if (url_safe) {
+                encoded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+                while (encoded.length % 4) encoded += '=';
+            }
+
+            const binary = atob(encoded);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            result = Array.from(bytes);
         }
 
-        console.log("Worker: Python files written to virtual FS.");
+        const size = result.length;
+        const is_large = size > 1048576; // 1MB
+        
+        // Generate preview
+        let preview = "";
+        if (typeof result === 'string') {
+            preview = is_large ? result.substring(0, 1000) + "..." : result;
+        } else if (Array.isArray(result)) {
+            // It's a byte array
+            try {
+                const previewBytes = new Uint8Array(result.slice(0, 1000));
+                preview = new TextDecoder().decode(previewBytes);
+                if (size > 1000) {
+                    preview += "...";
+                }
+            } catch (e) {
+                preview = `[Binary Data: ${size} bytes]`;
+            }
+        }
 
-        // Import the main function
-        await pyodide.runPythonAsync(`
-import sys
-import os
-# Ensure the current directory is in path
-sys.path.append(os.getcwd())
+        return {
+            success: true,
+            result,
+            preview,
+            size,
+            original_size,
+            is_large
+        };
 
-from tools.base64_tool.main import process_data
-        `);
-
-        console.log("Worker: Base64 tool ready!");
-        self.postMessage({ type: "READY" });
-        return pyodide;
-    } catch (error) {
-        console.error("Worker: Failed to initialize Pyodide:", error);
-        self.postMessage({ type: "ERROR", error: String(error) });
-        throw error;
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.message || String(error)
+        };
     }
 }
 
-self.onmessage = async (event: MessageEvent) => {
-    const { type, data, id } = event.data;
+self.onmessage = (event: MessageEvent) => {
+    const { type, action, data, id } = event.data;
 
-    if (type === "PROCESS") {
-        try {
-            const py = await initPyodide();
+    if (type !== "EXECUTE") return;
 
-            // Get the function from Python
-            const processDataFn = py.globals.get("process_data");
-
-            // Convert the request data to Python
-            const request: Base64Request = data;
-            const pythonRequest = py.toPy(request);
-
-            // Call the Python function
-            const result = processDataFn(pythonRequest).toJs({
-                dict_converter: Object.fromEntries
-            }) as Base64Response;
-
-            self.postMessage({ type: "PROCESS_RESULT", data: result, id });
-        } catch (error: any) {
-            console.error("Worker: Processing error:", error);
-            self.postMessage({
-                type: "PROCESS_ERROR",
-                error: error.message || String(error),
-                id
-            });
-        }
+    if (action === "process") {
+        const result = process_data(data);
+        self.postMessage({ type: "RESULT", data: result, id });
     }
 };
 
-// Start initializing immediately
-initPyodide().catch(console.error);
+// Immediate ready signal
+console.log("Worker: Base64 TS Worker Ready");
+self.postMessage({ type: "READY" });

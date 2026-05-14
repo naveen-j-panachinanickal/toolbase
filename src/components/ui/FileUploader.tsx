@@ -11,6 +11,7 @@ interface FileUploaderProps {
     maxSize?: number; // in bytes
     className?: string;
     showFileList?: boolean;
+    disabled?: boolean;
 }
 
 export const FileUploader = ({
@@ -20,6 +21,7 @@ export const FileUploader = ({
     maxSize,
     className,
     showFileList = true,
+    disabled = false,
 }: FileUploaderProps) => {
     const [isDragOver, setIsDragOver] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -133,90 +135,101 @@ export const FileUploader = ({
     };
 
     return (
-        <div className={cn('space-y-6', className)}>
-            <Card
+        <div className={cn('space-y-5', className)}>
+            <div
                 className={cn(
-                    'relative overflow-hidden transition-all duration-300',
-                    'border-2 border-dashed backdrop-blur-sm',
-                    'bg-linear-to-br from-white/95 to-gray-50/95',
+                    'relative overflow-hidden transition-all duration-300 cursor-pointer',
+                    'border-2 border-dashed rounded-2xl backdrop-blur-sm',
+                    'bg-surface',
                     isDragOver
-                        ? 'border-primary/60 bg-primary/5 scale-[1.01] shadow-lg shadow-primary/10'
-                        : 'border-gray-300/80 hover:border-primary/40 hover:bg-white/80 hover:shadow-xl',
-                    'rounded-2xl'
+                        ? 'border-primary bg-primary/5 scale-[1.01] shadow-lg shadow-primary/10'
+                        : 'border-border-medium hover:border-primary/50 hover:bg-surface/80 hover:shadow-xl',
+                    disabled && 'opacity-50 cursor-not-allowed'
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
+                onClick={() => !disabled && inputRef.current?.click()}
             >
-                <div className="relative flex flex-col items-center justify-center py-16 px-4 text-center">
-                    {/* Animated background effect */}
-                    {isDragOver && (
-                        <div className="absolute inset-0 bg-linear-to-r from-primary/5 via-transparent to-primary/5 animate-pulse" />
-                    )}
-                    
-                    {/* Icon with gradient background */}
+                {/* Animated background effect on drag */}
+                {isDragOver && (
+                    <div className="absolute inset-0 bg-primary/5 animate-pulse pointer-events-none" />
+                )}
+
+                <div className="relative flex flex-col items-center justify-center py-12 px-6 text-center">
+                    {/* Icon container */}
                     <div className={cn(
-                        "relative mb-6 rounded-2xl p-5 transition-all duration-300",
-                        "bg-linear-to-br from-white to-gray-50 shadow-lg",
-                        isDragOver 
-                            ? "scale-110 shadow-xl shadow-primary/20 ring-2 ring-primary/20" 
+                        "relative mb-5 rounded-2xl p-4 transition-all duration-300",
+                        "bg-surface-elevated shadow-md",
+                        isDragOver
+                            ? "scale-110 shadow-xl shadow-primary/20 ring-2 ring-primary/20"
                             : "shadow-md"
                     )}>
                         <div className={cn(
                             "rounded-xl p-3 transition-colors duration-300",
-                            isDragOver  
-                                ? "bg-linear-to-br from-primary/20 to-primary/10" 
-                                : "bg-linear-to-br from-gray-100 to-gray-50"
+                            isDragOver
+                                ? "bg-primary/10"
+                                : "bg-surface-secondary"
                         )}>
                             <Upload className={cn(
                                 "h-8 w-8 transition-all duration-300",
-                                isDragOver 
-                                    ? "text-primary scale-110" 
-                                    : "text-gray-600"
+                                isDragOver
+                                    ? "text-primary scale-110"
+                                    : "text-text-secondary"
                             )} />
                         </div>
                     </div>
 
                     {/* Main text */}
-                    <div className="relative space-y-3 mb-8">
-                        <h3 className="text-2xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                            {isDragOver ? 'Release to upload' : 'Drag & drop files here'}
+                    <div className="relative space-y-2 mb-6 max-w-sm">
+                        <h3 className={cn(
+                            "text-xl font-bold transition-all duration-300",
+                            "text-text-primary",
+                            isDragOver && "text-primary"
+                        )}>
+                            {isDragOver ? 'Drop files to upload' : 'Drag & drop files here'}
                         </h3>
-                        <p className="text-gray-600 text-base max-w-sm">
-                            Upload {multiple ? 'files' : 'a file'} to get started. 
-                            {accept !== '*' && ` Supports ${accept}`}
+                        <p className={cn(
+                            "text-sm transition-all duration-300",
+                            isDragOver ? "text-primary font-medium" : "text-text-muted"
+                        )}>
+                            Upload {multiple ? 'files' : 'a file'} to get started.
+                            {accept !== '*' && accept !== '*' && (
+                                <span className="block mt-1 text-xs text-text-faint">
+                                    Supports: {accept}
+                                </span>
+                            )}
                         </p>
-                        <div className="pt-2">
-                            <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-gray-100/80 px-4 py-2 rounded-full">
-                                <AlertCircle className="h-4 w-4" />
-                                Max size: {maxSize ? formatFileSize(maxSize) : 'Unlimited'}
+
+                        {/* Max size badge */}
+                        <div className="flex items-center justify-center gap-2 mt-3">
+                            <div className="h-px w-8 bg-gray-200" />
+                            <div className={cn(
+                                "inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full",
+                                isDragOver
+                                    ? "bg-primary/10 text-primary"
+                                    : "bg-surface-secondary text-text-muted"
+                            )}>
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Max: {maxSize ? formatFileSize(maxSize) : 'Unlimited'}
                             </div>
+                            <div className="h-px w-8 bg-gray-200" />
                         </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex gap-4">
-                        <Button 
-                            onClick={() => inputRef.current?.click()} 
-                            className="relative overflow-hidden group"
-                        >
-                            <span className="relative z-10 flex items-center gap-2">
-                                <Upload className="h-4 w-4" />
-                                Browse Files
-                            </span>
-                            <div className="absolute inset-0 bg-linear-to-r from-primary to-primary/80 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                        </Button>
-                        
-                        {uploadedFiles.length > 0 && (
-                            <Button 
-                                onClick={clearAllFiles}
-                                variant="ghost"
-                                className="hover:bg-red-50 hover:text-red-600"
-                            >
-                                Clear All
-                            </Button>
-                        )}
-                    </div>
+                    {/* Browse button */}
+                    <Button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            inputRef.current?.click();
+                        }}
+                        className="relative overflow-hidden group"
+                    >
+                        <span className="relative z-10 flex items-center gap-2">
+                            <Upload className="h-4 w-4" />
+                            Browse Files
+                        </span>
+                    </Button>
 
                     <input
                         ref={inputRef}
@@ -225,75 +238,72 @@ export const FileUploader = ({
                         multiple={multiple}
                         accept={accept}
                         onChange={handleFileInput}
+                        disabled={disabled}
                     />
                 </div>
-            </Card>
+            </div>
 
             {/* File list with progress indicators */}
             {showFileList && uploadedFiles.length > 0 && (
-                <Card className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white/90 backdrop-blur-sm">
-                    <div className="p-6">
-                        <div className="flex items-center justify-between mb-6">
+                <Card className="overflow-hidden rounded-2xl border border-border-medium bg-surface-elevated shadow-lg">
+                    <div className="p-5">
+                        <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-lg bg-primary/10">
                                     <FileText className="h-5 w-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-gray-900">Uploaded Files</h4>
-                                    <p className="text-sm text-gray-600">
-                                        {uploadedFiles.length} {uploadedFiles.length === 1 ? 'file' : 'files'} selected
+                                    <h4 className="font-semibold text-text-primary">Uploaded Files</h4>
+                                    <p className="text-xs text-text-muted">
+                                        {uploadedFiles.length} {uploadedFiles.length === 1 ? 'file' : 'files'}
                                     </p>
                                 </div>
                             </div>
-                            <Button 
+                            <Button
                                 onClick={clearAllFiles}
                                 variant="ghost"
                                 size="sm"
-                                className="text-gray-500 hover:text-red-600"
+                                className="text-text-muted hover:text-red-600 hover:bg-red-50"
                             >
+                                <X className="h-4 w-4 mr-1" />
                                 Clear all
                             </Button>
                         </div>
 
-                        <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
                             {uploadedFiles.map((file) => {
                                 const progress = uploadProgress[file.name] || 0;
                                 const isComplete = progress === 100;
-                                
+
                                 return (
                                     <div
                                         key={file.name}
-                                        className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200/60 hover:border-gray-300 hover:bg-gray-50/50 transition-all duration-200"
+                                        className="group flex items-center gap-3 p-3 rounded-xl border border-border-medium hover:border-primary/20 hover:bg-primary/5 transition-all duration-200"
                                     >
                                         <div className="shrink-0">
                                             <div className={cn(
-                                                "p-3 rounded-xl transition-colors",
-                                                isComplete 
-                                                    ? "bg-green-50 text-green-600" 
-                                                    : "bg-gray-100 text-gray-600"
+                                                "p-2 rounded-lg transition-colors",
+                                                isComplete
+                                                    ? "bg-green-500/10 text-green-600"
+                                                    : "bg-surface-secondary text-text-secondary"
                                             )}>
                                                 {getFileIcon(file)}
                                             </div>
                                         </div>
-                                        
+
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="font-medium text-gray-900 truncate">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="font-medium text-text-primary truncate text-sm">
                                                     {file.name}
                                                 </p>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-sm text-gray-500">
-                                                        {formatFileSize(file.size)}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => removeFile(file.name)}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600"
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </button>
-                                                </div>
+                                                <button
+                                                    onClick={() => removeFile(file.name)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-all p-1 hover:bg-red-100 rounded text-text-faint hover:text-red-600"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
                                             </div>
-                                            
+
                                             {/* Progress bar */}
                                             <div className="space-y-1">
                                                 <div className="flex justify-between text-xs">
@@ -301,19 +311,16 @@ export const FileUploader = ({
                                                         "font-medium",
                                                         isComplete ? "text-green-600" : "text-primary"
                                                     )}>
-                                                        {isComplete ? 'Uploaded' : `${progress.toFixed(0)}%`}
+                                                        {isComplete ? 'Ready' : `${progress.toFixed(0)}%`}
                                                     </span>
-                                                    {isComplete && (
-                                                        <CheckCircle className="h-4 w-4 text-green-500" />
-                                                    )}
                                                 </div>
-                                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className="h-1.5 bg-surface-secondary rounded-full overflow-hidden">
                                                     <div
                                                         className={cn(
                                                             "h-full transition-all duration-300 rounded-full",
-                                                            isComplete 
-                                                                ? "bg-linear-to-r from-green-500 to-green-400" 
-                                                                : "bg-linear-to-r from-primary to-primary/80"
+                                                            isComplete
+                                                                ? "bg-green-500"
+                                                                : "bg-primary"
                                                         )}
                                                         style={{ width: `${progress}%` }}
                                                     />

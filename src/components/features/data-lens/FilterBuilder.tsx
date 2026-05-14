@@ -71,23 +71,61 @@ const QUICK_FILTERS = [
 ];
 
 export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
-    const [conditions, setConditions] = useState<FilterCondition[]>([]);
+    const [savedFilters, setSavedFilters] = useState<{ name: string, conditions: FilterCondition[] }[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [savedFilters, setSavedFilters] = useState<{ name: string, conditions: FilterCondition[] }[]>([]);
+
+    const getColumnType = useCallback((colName: string): string => {
+        const col = schema?.columns.find(c => c.name === colName);
+        if (!col) return 'string';
+        const type = col.type.toLowerCase();
+        if (type.includes('float') || type.includes('int') || type.includes('number')) return 'number';
+        if (type.includes('bool')) return 'boolean';
+        if (type.includes('date') || type.includes('time')) return 'date';
+        return 'string';
+    }, [schema]);
+
+    const getColumnIcon = useCallback((colName: string) => {
+        const type = getColumnType(colName);
+        switch (type) {
+            case 'number': return <Hash className="w-3 h-3" />;
+            case 'boolean': return <ToggleLeft className="w-3 h-3" />;
+            case 'date': return <Calendar className="w-3 h-3" />;
+            default: return <Type className="w-3 h-3" />;
+        }
+    }, [getColumnType]);
+
+    const [conditions, setConditions] = useState<FilterCondition[]>([]);
 
     const addCondition = useCallback((preset?: { operator: string, value?: string }) => {
         if (!schema?.columns.length) return;
+
+        const defaultColName = schema.columns[0].name;
+        const colType = getColumnType(defaultColName);
+        let operator = preset?.operator || 'contains';
+
+        // Map generic operators to type-specific ones
+        if (operator === 'is_not_empty' && colType === 'number') operator = 'is_not_null';
+        if (operator === 'is_empty' && colType === 'number') operator = 'is_null';
+        if (operator === 'is_not_empty' && colType === 'date') operator = 'is_not_null';
+        if (operator === 'is_empty' && colType === 'date') operator = 'is_null';
+
+        // Ensure operator exists for the type, else use type's first operator
+        const ops = OPERATORS[colType as keyof typeof OPERATORS] || OPERATORS.string;
+        if (!ops.find(o => o.value === operator)) {
+            operator = ops[0].value;
+        }
+
         const newCondition: FilterCondition = {
             id: crypto.randomUUID(),
-            column: schema.columns[0].name,
-            operator: preset?.operator || 'contains',
+            column: defaultColName,
+            operator: operator,
             value: preset?.value || '',
             logic: conditions.length > 0 ? 'AND' : undefined
         };
         setConditions(prev => [...prev, newCondition]);
         setIsExpanded(true);
-    }, [schema, conditions.length]);
+    }, [schema, conditions.length, getColumnType]);
 
     const removeCondition = useCallback((id: string) => {
         setConditions(prev => {
@@ -127,26 +165,6 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
         }));
     }, []);
 
-    const getColumnType = useCallback((colName: string): string => {
-        const col = schema?.columns.find(c => c.name === colName);
-        if (!col) return 'string';
-        const type = col.type.toLowerCase();
-        if (type.includes('float') || type.includes('int') || type.includes('number')) return 'number';
-        if (type.includes('bool')) return 'boolean';
-        if (type.includes('date') || type.includes('time')) return 'date';
-        return 'string';
-    }, [schema]);
-
-    const getColumnIcon = useCallback((colName: string) => {
-        const type = getColumnType(colName);
-        switch (type) {
-            case 'number': return <Hash className="w-3 h-3" />;
-            case 'boolean': return <ToggleLeft className="w-3 h-3" />;
-            case 'date': return <Calendar className="w-3 h-3" />;
-            default: return <Type className="w-3 h-3" />;
-        }
-    }, [getColumnType]);
-
     const handleApply = useCallback(() => {
         onApply(conditions.filter(c => {
             // Skip empty value conditions for operators that need values
@@ -177,7 +195,7 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
     if (!schema) return null;
 
     return (
-        <div className="border-b border-gray-100 bg-white">
+        <div className="border-b border-border-subtle bg-surface-secondary">
             {/* Main Filter Bar */}
             <div className="px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -185,8 +203,8 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                     <button
                         onClick={() => conditions.length > 0 ? setIsExpanded(!isExpanded) : addCondition()}
                         className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${conditions.length > 0
-                                ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-sm'
-                                : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 hover:text-gray-900'
+                            ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm'
+                            : 'bg-surface-elevated text-text-secondary border border-border-subtle hover:bg-surface-hover hover:text-text-primary'
                             }`}
                     >
                         <Filter className="w-4 h-4" />
@@ -202,24 +220,24 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
 
                     {/* Quick Actions */}
                     {conditions.length > 0 && (
-                        <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
+                        <div className="flex items-center gap-1 border-l border-border-subtle pl-3">
                             <button
                                 onClick={() => addCondition()}
-                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                 title="Add filter"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={saveCurrentFilter}
-                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                 title="Save filter"
                             >
                                 <Save className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={clearAll}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-2 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                 title="Clear all"
                             >
                                 <Trash2 className="w-4 h-4" />
@@ -229,13 +247,13 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
 
                     {/* Quick Filter Presets */}
                     {conditions.length === 0 && (
-                        <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
-                            <span className="text-xs text-gray-400 mr-2">Quick:</span>
+                        <div className="flex items-center gap-1 border-l border-border-subtle pl-3">
+                            <span className="text-xs text-text-muted mr-2">Quick:</span>
                             {QUICK_FILTERS.slice(0, 3).map((preset, i) => (
                                 <button
                                     key={i}
                                     onClick={() => addCondition({ operator: preset.operator, value: preset.value })}
-                                    className="px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                    className="px-2 py-1 text-xs bg-surface-overlay text-text-secondary rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
                                     title={preset.label}
                                 >
                                     {preset.icon}
@@ -250,7 +268,7 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                     <Button
                         onClick={handleApply}
                         size="sm"
-                        className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                     >
                         <Play className="w-3.5 h-3.5" />
                         Apply Filters
@@ -263,13 +281,13 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                 <div className="px-5 pb-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
                     {/* Saved Filters */}
                     {savedFilters.length > 0 && (
-                        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                            <span className="text-xs text-gray-400">Saved:</span>
+                        <div className="flex items-center gap-2 pb-3 border-b border-border-subtle">
+                            <span className="text-xs text-text-muted">Saved:</span>
                             {savedFilters.map((f, i) => (
                                 <button
                                     key={i}
                                     onClick={() => loadFilter(f)}
-                                    className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                    className="px-2 py-1 text-xs bg-surface-elevated text-text-secondary rounded-md hover:bg-primary/10 hover:text-primary transition-colors"
                                 >
                                     {f.name}
                                 </button>
@@ -286,38 +304,38 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                         return (
                             <div
                                 key={c.id}
-                                className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-left-2 duration-200"
+                                className="flex items-center gap-2 p-3 bg-surface rounded-xl border border-border-subtle animate-in fade-in slide-in-from-left-2 duration-200"
                             >
                                 {/* Logic Selector (AND/OR) */}
                                 {index > 0 && (
                                     <select
                                         value={c.logic || 'AND'}
                                         onChange={(e) => updateCondition(c.id, { logic: e.target.value as 'AND' | 'OR' })}
-                                        className="w-16 px-2 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                        className="w-16 px-2 py-1.5 text-xs font-medium text-text-secondary bg-surface-elevated border border-border-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                                     >
                                         <option value="AND">AND</option>
                                         <option value="OR">OR</option>
                                     </select>
                                 )}
                                 {index === 0 && (
-                                    <span className="w-16 text-xs font-medium text-gray-400 text-center">WHERE</span>
+                                    <span className="w-16 text-xs font-medium text-text-muted text-center">WHERE</span>
                                 )}
 
                                 {/* Column Selector */}
                                 <div className="relative">
-                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
                                         {getColumnIcon(c.column)}
                                     </div>
                                     <select
                                         value={c.column}
                                         onChange={(e) => updateCondition(c.id, { column: e.target.value })}
-                                        className="pl-8 pr-8 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 appearance-none cursor-pointer min-w-[140px]"
+                                        className="pl-8 pr-8 py-2 text-sm bg-surface-elevated border border-border-medium rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 appearance-none cursor-pointer min-w-[140px]"
                                     >
                                         {schema.columns.map(col => (
                                             <option key={col.name} value={col.name}>{col.name}</option>
                                         ))}
                                     </select>
-                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
                                 </div>
 
                                 {/* Operator Selector */}
@@ -325,7 +343,7 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                                     <select
                                         value={c.operator}
                                         onChange={(e) => updateCondition(c.id, { operator: e.target.value })}
-                                        className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 appearance-none cursor-pointer min-w-[150px]"
+                                        className="px-3 py-2 text-sm bg-surface-elevated border border-border-medium rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 appearance-none cursor-pointer min-w-[150px]"
                                     >
                                         {ops.map(op => (
                                             <option key={op.value} value={op.value}>
@@ -333,7 +351,7 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                                             </option>
                                         ))}
                                     </select>
-                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
                                 </div>
 
                                 {/* Value Input(s) */}
@@ -344,18 +362,18 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                                             value={c.value}
                                             onChange={(e) => updateCondition(c.id, { value: e.target.value })}
                                             placeholder={c.operator === 'in_list' ? 'value1, value2, ...' : 'Enter value...'}
-                                            className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                            className="flex-1 px-3 py-2 text-sm bg-surface-elevated border border-border-medium rounded-lg text-text-primary placeholder-(--text-muted) focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                                             onKeyDown={(e) => e.key === 'Enter' && handleApply()}
                                         />
                                         {needsSecondValue(c.operator) && (
                                             <>
-                                                <span className="text-xs text-gray-400">to</span>
+                                                <span className="text-xs text-text-muted">to</span>
                                                 <input
                                                     type={colType === 'number' ? 'number' : 'date'}
                                                     value={c.value2 || ''}
                                                     onChange={(e) => updateCondition(c.id, { value2: e.target.value })}
                                                     placeholder="End value..."
-                                                    className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
+                                                    className="flex-1 px-3 py-2 text-sm bg-surface-elevated border border-border-medium rounded-lg text-text-primary placeholder-(--text-muted) focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                                                     onKeyDown={(e) => e.key === 'Enter' && handleApply()}
                                                 />
                                             </>
@@ -367,14 +385,14 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                                 <div className="flex items-center gap-1 ml-2">
                                     <button
                                         onClick={() => duplicateCondition(c)}
-                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                        className="p-1.5 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                         title="Duplicate"
                                     >
                                         <Copy className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                         onClick={() => removeCondition(c.id)}
-                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                        className="p-1.5 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                         title="Remove"
                                     >
                                         <X className="w-3.5 h-3.5" />
@@ -387,7 +405,7 @@ export function FilterBuilder({ schema, onApply }: FilterBuilderProps) {
                     {/* Add More Button */}
                     <button
                         onClick={() => addCondition()}
-                        className="w-full py-2 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2 border-2 border-dashed border-border-medium rounded-xl text-sm text-text-muted hover:text-primary hover:border-primary/50 hover:bg-primary/10 transition-all flex items-center justify-center gap-2"
                     >
                         <Plus className="w-4 h-4" />
                         Add another condition

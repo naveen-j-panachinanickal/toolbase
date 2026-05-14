@@ -1,82 +1,57 @@
-import { loadPyodide, type PyodideInterface } from "pyodide";
-import { PYTHON_FILES } from "@/python/bundles/redact_secrets.bundle";
+import type { RedactRequest, RedactResponse } from "@/types/redact";
 
+type RedactSecretsRustApi = {
+  default: (wasmUrl?: string | URL | Request) => Promise<unknown>;
+  redact_json: (requestJson: string) => string;
+};
 
-let pyodide: PyodideInterface | null = null;
+let rustApiPromise: Promise<RedactSecretsRustApi> | null = null;
+let currentEngineLabel: "Rust WASM" | "Unavailable" = "Unavailable";
 
-async function initPyodide() {
-    if (pyodide) return pyodide;
-
-    console.log("Worker: Initializing Pyodide...");
-    try {
-        pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.2/full/",
-        });
-        console.log("Worker: Pyodide loaded, setting up filesystem...");
-
-        // Setup the virtual filesystem
-        for (const [filePath, content] of Object.entries(PYTHON_FILES)) {
-            const parts = filePath.split('/');
-            let currentPath = '';
-
-            // Create directories
-            for (let i = 0; i < parts.length - 1; i++) {
-                currentPath += (currentPath ? '/' : '') + parts[i];
-                try {
-                    pyodide.FS.mkdir(currentPath);
-                } catch (e) {
-                    // Directory might already exist
-                }
-            }
-
-            // Write file
-            pyodide.FS.writeFile(filePath, content);
-        }
-
-        console.log("Worker: Python files written to virtual FS.");
-
-        // Import the main function
-        await pyodide.runPythonAsync(`
-import sys
-import os
-# Ensure the current directory is in path
-sys.path.append(os.getcwd())
-
-from tools.redact_secrets.main import redact
-        `);
-
-
-        // All files are written with underscores in their paths now
-
-
-        self.postMessage({ type: "READY" });
-        return pyodide;
-    } catch (error) {
-        console.error("Worker: Failed to initialize Pyodide:", error);
-        throw error;
-    }
+async function initRustApi(): Promise<RedactSecretsRustApi> {
+  if (!rustApiPromise) {
+    rustApiPromise = (async () => {
+      const base = self.location?.origin ?? "";
+      const jsUrl = `${base}/wasm/redact-secrets/pkg/redact_secrets.js`;
+      const wasmUrl = `${base}/wasm/redact-secrets/pkg/redact_secrets_bg.wasm`;
+      const mod = (await import(/* webpackIgnore: true */ jsUrl)) as RedactSecretsRustApi;
+      await mod.default(wasmUrl);
+      currentEngineLabel = "Rust WASM";
+      return mod;
+    })();
+  }
+  return rustApiPromise;
 }
 
 self.onmessage = async (event: MessageEvent) => {
-    const { type, data, id } = event.data;
+  const { type, action, data, id } = event.data;
 
-    if (type === "REDACT") {
-        try {
-            const py = await initPyodide();
+  if (type !== "EXECUTE" || action !== "redact") return;
 
-            // Get the function from Python
-            const redactFn = py.globals.get("redact");
-
-            const result = redactFn(py.toPy(data)).toJs({ dict_converter: Object.fromEntries });
-
-            self.postMessage({ type: "REDACT_RESULT", data: result, id });
-        } catch (error: any) {
-            console.error("Worker: Redaction error:", error);
-            self.postMessage({ type: "REDACT_ERROR", error: error.message, id });
-        }
-    }
+  try {
+    const api = await initRustApi();
+    const result = JSON.parse(api.redact_json(JSON.stringify(data as RedactRequest))) as RedactResponse;
+    self.postMessage({ type: "RESULT", data: { ...result, result: result.maskedContent }, id, engine: currentEngineLabel });
+  } catch (error: unknown) {
+    self.postMessage({
+      type: "ERROR",
+      error: error instanceof Error ? error.message : "Rust redaction engine failed",
+      id,
+      engine: "Unavailable",
+    });
+  }
 };
 
-// Start initializing immediately
-initPyodide().catch(console.error);
-
+// Removed top-level initialization to prevent background loading on the home page.
+/*
+initRustApi()
+  .then(() => self.postMessage({ type: "READY", engine: currentEngineLabel }))
+  .catch((error: unknown) => {
+    currentEngineLabel = "Unavailable";
+    self.postMessage({
+      type: "READY",
+      engine: currentEngineLabel,
+      warning: error instanceof Error ? error.message : "Rust engine initialization failed",
+    });
+  });
+*/

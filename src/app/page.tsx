@@ -1,149 +1,168 @@
 'use client';
+
 import NextImage from 'next/image';
-import { appIcons } from "@/config/icons";
-import { ToolCardProps } from "@/types/tool-search";
 import SearchBar from "../components/ui/SearchBar";
 import ToolGrid from "../components/ui/ToolGrid";
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { m, Variants } from 'framer-motion';
+import BottomNav from "../components/ui/BottomNav";
 import Header from '@/components/ui/Header';
 import Footer from '@/components/ui/Footer';
+import { TOOLS } from '@/config/tools.registry';
+import type { ToolMeta } from '@/types/tool-search';
+import { ToolCardProps } from '@/types/tool-search';
+import { RecentsDrawer } from '@/components/ui/RecentsDrawer';
+import { FavoritesDrawer } from '@/components/ui/FavoritesDrawer';
+
+import { TryPipelineButton } from '@/components/ui/TryPipelineButton';
+
+/**
+ * Map the central tool registry to the ToolCardProps shape expected
+ * by ToolGrid / ToolCard. This is the single translation point —
+ * add a tool to tools.registry.ts and it automatically appears here.
+ */
+function registryToCardProps(tools: ToolMeta[]): ToolCardProps[] {
+  return tools
+    .filter((tool) => tool.route !== 'pipeline') // Remove pipeline from grid
+    .map((tool) => ({
+      title: tool.name,
+      route: tool.route,
+      icon: tool.thumbnail,
+      metadata: tool.tags,
+      toolId: tool.id,
+    }));
+}
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const tools: ToolCardProps[] = [
-    {
-      title: "Redact Secrets",
-      toolFolderName: "redact-secrets",
-      icon: appIcons['redact-secrets'],
-      metadata: ["security", "privacy", "text", "remove", "hide", "clean", "sanitize", "secret"]
-    },
-    {
-      title: "JSON to Interface/Model",
-      toolFolderName: "json-to-interface",
-      icon: appIcons['json-to-interface'],
-      metadata: ["json", "typescript", "interface", "model", "schema", "convert", "generator", "type", "definition"]
-    },
-    {
-      title: "Magic PDF",
-      toolFolderName: "magic-pdf",
-      icon: appIcons['magic-pdf'],
-      metadata: ["pdf", "merge", "split", "compress", "edit", "rearrange", "sign", "protect", "document"]
-    },
-    {
-      title: "Base64 Encode/Decode",
-      toolFolderName: "base64",
-      icon: appIcons['b64EnDc'],
-      metadata: ["base64", "encode", "decode", "string", "binary", "convert", "text", "buffer"]
-    },
-    {
-      title: "DataLens",
-      toolFolderName: "data-lens",
-      icon: appIcons['data-lens'],
-      metadata: ["json", "viewer", "explorer", "data", "analyze", "visualize", "structure", "tree"]
-    },
-    {
-      title: "Ping Tester",
-      toolFolderName: "ping-tester",
-      icon: appIcons['ping-tester'],
-      metadata: ["network", "latency", "icmp", "response time", "connectivity", "internet", "ping"]
-    },
-    {
-      title: "Internet Speed Test",
-      toolFolderName: "speed-test",
-      icon: appIcons['speed-test'],
-      metadata: ["download", "upload", "bandwidth", "internet speed", "connection", "network", "speed"]
-    },
-    {
-      title: "Open Draw",
-      toolFolderName: "open-draw",
-      icon: appIcons['open-draw'],
-      metadata: ["drawing", "sketching", "diagramming", "whiteboard", "collaboration"]
-    },
-    {
-      title: "Pixel Axe",
-      toolFolderName: "pixel-axe",
-      icon: appIcons['pixel-axe'],
-      metadata: ["image", "compress", "optimize", "resize", "convert", "format", "quality", "lossy", "lossless", "stego", "hide", "reveal", "upscale", "hide data in image", "extract data from image", "image info"]
-    },
-    {
-      title: "Background Remover",
-      toolFolderName: "bgremover",
-      icon: appIcons['bgremover'],
-      metadata: ["Background", "remove", "erase", "image", "clear", "transparent", "png", "jpg", "jpeg", "webp", "cut"]
-    }
+  const [isRecentsOpen, setIsRecentsOpen] = useState(false);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
 
-  ];
+  const tools = useMemo(() => registryToCardProps(TOOLS), []);
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.12,
+        delayChildren: 0.2
+      }
+    }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 1.2,
+        ease: [0.23, 1, 0.32, 1]
+      }
+    }
+  };
 
   return (
     <div>
-      <Header />
-      <div className="bg-background-light view font-display text-[#1c1c1e] min-h-screen flex flex-col selection:bg-primary/30 antialiased">
-        <main className="grow px-6 md:px-20 lg:px-40 py-12 lg:py-16">
-          <div className="max-w-[1200px] mx-auto">
-            <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-center mb-10 max-w-2xl mx-auto leading-snug animate-fade-up">
-              The Open Build Network: Browser-based utilities for the privacy-conscious developer.
-            </h3>
+      <Header
+        onOpenRecents={() => setIsRecentsOpen(true)}
+        onOpenFavorites={() => setIsFavoritesOpen(true)}
+      />
+      <div className="view relative font-display min-h-screen flex flex-col selection:bg-primary/30 antialiased overflow-x-hidden"
+        style={{ color: 'var(--text-primary)' }}
+      >
 
-            <div className="animate-fade-up-delay-1 mb-12">
-              <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <main className="relative grow z-10 px-4 md:px-20 lg:px-40 py-10 lg:py-24">
+          <div className="max-w-[1200px] mx-auto">
+
+            {/* Animated High-Impact Headline */}
+            <m.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="mb-16 md:mb-24"
+            >
+              <m.h1
+                variants={itemVariants}
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-extrabold tracking-tight text-center leading-[1] md:leading-[0.9]"
+              >
+                <span className="block text-transparent bg-clip-text bg-gradient-to-br from-primary via-blue-500 to-cyan-400 pb-2 drop-shadow-sm">
+                  Your tools.
+                </span>
+                <span className="block text-transparent bg-clip-text bg-gradient-to-br from-primary/80 via-blue-600 to-indigo-500 pb-4">
+                  Your browser.
+                </span>
+              </m.h1>
+
+              <m.p
+                variants={itemVariants}
+                className="text-center text-lg md:text-2xl lg:text-3xl font-medium opacity-80 max-w-2xl mx-auto mt-4 md:mt-6"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                No servers, no tracking, no compromise.
+              </m.p>
+            </m.div>
+
+            <m.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, duration: 1 }}
+              className="mb-16 flex flex-col md:flex-row items-center justify-center gap-4"
+            >
+              <div className="w-full max-w-[500px]">
+                <SearchBar value={searchQuery} onChange={setSearchQuery} />
+              </div>
+              <div className="w-full max-w-[500px] md:w-auto">
+                <TryPipelineButton />
+              </div>
+            </m.div>
+
+            <div id="tool-grid-section">
+              <ToolGrid searchQuery={searchQuery} tools={tools} />
             </div>
 
-            <ToolGrid searchQuery={searchQuery} tools={tools} />
+            <div className="mt-20 flex justify-center">
+              <div
+                className="
+                          flex items-center gap-2
+                          px-5 py-2.5
+                          rounded-full
+                          backdrop-blur-xl
+                          border
+                          transition-all duration-200"
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  borderColor: 'rgba(255,255,255,0.08)',
+                  color: 'var(--text-secondary)',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.25)'
+                }}
+              >
+                <span className="text-sm">
+                  Open source with
+                </span>
 
-            <section className="sm:mt-[72px] animate-from-bottom mt-[42px] pt-[16px] border-t border-black/5 max-w-3xl mx-auto">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#8e8e93] mb-6 text-center sm:text-left">About the Platform</h2>
-              <div className="space-y-6">
-                <p className="text-lg md:text-xl leading-relaxed text-[#3a3a3c] font-normal text-center sm:text-left">
-                  The Open Build Network (OBN) is a collection of high-performance developer utilities designed with a radical approach to security. Every tool in this suite runs <strong>entirely in your browser</strong> using WebAssembly (WASM) and local processing.
-                </p>
-                <p className="text-lg md:text-xl leading-relaxed text-[#3a3a3c] font-normal text-center sm:text-left">
-                  By eliminating server-side requirements, we ensure that your sensitive data—whether it&apos;s source code, PDFs, or database credentials—<strong>never leaves your machine</strong>. This architecture provides the privacy of local desktop software with the accessibility of the web.
-                </p>
-              </div>
-            </section>
+                <span className="text-red-500 text-sm">❤️</span>
 
-            <section className="sm:mt-[72px] animate-from-bottom mt-[42px] py-16 rounded-3xl bg-black/3 border border-black/5 max-w-4xl mx-auto flex flex-col items-center text-center">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#8e8e93] mb-10">Featured Tool</h2>
-              <div className="flex flex-col items-center gap-8 w-full">
-                <div className="icon-container w-[140px] h-[140px] bg-linear-to-br from-[#409cff] to-[#007aff] shadow-2xl">
-                  <div className="icon-texture"></div>
-                  <div className="premium-sheen"></div>
-                  <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <NextImage width={64} height={64} className='w-16 h-16' src="/assets/icons/pdf.svg" alt="" />
-                  </div>
-                </div>
-                <div className="max-w-xl">
-                  <h3 className="text-2xl font-bold mb-3 tracking-tight">PDF Workspace</h3>
-                  <p className="text-lg text-[#3a3a3c] mb-8 leading-relaxed">
-                    Securely merge, split, and optimize documents with industrial-grade tools running completely inside your browser environment.
-                  </p>
-                  <a className="macos-primary-button" href="#">
-                    <span>Launch Tool</span>
-                    <NextImage width={18} height={18} className='w-[18px] h-[18px]' src="/assets/icons/forward-white.svg" alt="" />
-                  </a>
-                </div>
+                <span className="text-sm">
+                  by the Open Build Network.
+                </span>
               </div>
-            </section>
-
-            <section className="sm:mt-[72px] animate-from-bottom mt-[42px] pt-[16px] border-t border-black/5 max-w-3xl mx-auto text-center">
-              <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#8e8e93] mb-6">Open Source & Community</h2>
-              <div className="space-y-8">
-                <p className="text-lg md:text-xl leading-relaxed text-[#3a3a3c] font-normal">
-                  OBN is built by the community, for the community. Our source code is fully transparent, and we welcome contributions to help build the world&apos;s most secure toolset.
-                </p>
-                <div className="pt-4">
-                  <a className="macos-button" href="#">
-                    <NextImage width={24} height={24} className='w-6 h-6' src="/assets/icons/github.svg" alt="" />
-                    <span>View Repository</span>
-                  </a>
-                </div>
-              </div>
-            </section>
+            </div>
           </div>
         </main>
-
+        <Footer />
+        <BottomNav tools={tools} />
       </div>
-      <Footer />
+
+      <RecentsDrawer
+        isOpen={isRecentsOpen}
+        onClose={() => setIsRecentsOpen(false)}
+      />
+      <FavoritesDrawer
+        isOpen={isFavoritesOpen}
+        onClose={() => setIsFavoritesOpen(false)}
+      />
     </div>
   );
 }

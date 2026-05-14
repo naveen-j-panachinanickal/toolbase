@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { FileUploader } from '@/components/ui/FileUploader';
 import { Button } from '@/components/ui/Button';
 import {
@@ -14,7 +14,7 @@ import {
     Link as LinkIcon
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { useMagicPdfWorker } from '@/hooks/useMagicPdfWorker';
+import { useTIPTool } from '@/hooks/useTIPTool';
 import { cn } from '@/lib/utils';
 
 export default function HtmlToPdf() {
@@ -23,7 +23,7 @@ export default function HtmlToPdf() {
     const [url, setUrl] = useState('');
     const [resultPdfUrl, setResultPdfUrl] = useState<string | null>(null);
     const [isFetching, setIsFetching] = useState(false);
-    const { processPdf, isProcessing } = useMagicPdfWorker();
+    const { execute, isProcessing, error, progress, progressMessage, tool } = useTIPTool('magic-pdf/html-to-pdf');
 
     const handleFileSelected = (files: File[]) => {
         if (files.length > 0) {
@@ -73,52 +73,17 @@ export default function HtmlToPdf() {
                 filename = urlObj.hostname;
             }
 
-            // Dynamically import html2pdf
-            // @ts-ignore
-            const html2pdf = (await import('html2pdf.js')).default;
+            // Execute through TIP
+            const htmlFile = new File([new Blob([htmlContent], { type: 'text/html' })], `${filename}.html`, { type: 'text/html' });
 
-            // Create a temporary container
-            const container = document.createElement('div');
-            container.innerHTML = htmlContent;
+            setIsFetching(false);
 
-            // Fix relative images to absolute if base URL is known
-            if (mode === 'url') {
-                const baseUrl = new URL(url).origin;
-                const imgs = container.getElementsByTagName('img');
-                for (let i = 0; i < imgs.length; i++) {
-                    const src = imgs[i].getAttribute('src');
-                    if (src && src.startsWith('/')) {
-                        imgs[i].src = baseUrl + src;
-                    }
-                }
-            }
+            const outputFiles = await execute([htmlFile], { pageSize: 'A4' });
 
-            // Style for better PDF rendering
-            container.style.width = '100%';
-            container.style.maxWidth = '800px';
-            container.style.margin = '0 auto';
-            container.style.background = 'white';
-
-
-            // Generate PDF
-            const worker = html2pdf().from(container).set({
-                    margin: 10,
-                    filename: `${filename}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                }).toPdf().get('pdf');
-
-            worker.then((pdf: any) => {
-                const pdfBlob = pdf.output('blob');
-                const pdfUrl = URL.createObjectURL(pdfBlob);
+            if (outputFiles && outputFiles.length > 0) {
+                const pdfUrl = URL.createObjectURL(outputFiles[0]);
                 setResultPdfUrl(pdfUrl);
-                setIsFetching(false);
-            }).catch((err: any) => {
-                console.error(err);
-                alert("Error generating PDF: " + err.message);
-                setIsFetching(false);
-            });
+            }
 
         } catch (error: any) {
             console.error('Conversion failed:', error);
@@ -131,7 +96,7 @@ export default function HtmlToPdf() {
         <div className="w-full max-w-4xl mx-auto space-y-8">
             <AnimatePresence mode="wait">
                 {!resultPdfUrl ? (
-                    <motion.div
+                    <m.div
                         key="setup"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -144,16 +109,16 @@ export default function HtmlToPdf() {
                                     <Globe className="w-8 h-8 text-orange-600" />
                                 </div>
                                 <h2 className="text-2xl font-semibold mb-2">HTML/Web to PDF</h2>
-                                <p className="text-gray-500">Convert HTML files or webpages to PDF documents.</p>
+                                <p className="text-text-muted">Convert HTML files or webpages to PDF documents.</p>
                             </div>
 
                             <div className="flex justify-center mb-8">
-                                <div className="bg-gray-100 p-1 rounded-lg inline-flex gap-1">
+                                <div className="bg-surface-secondary p-1 rounded-lg inline-flex gap-1">
                                     <button
                                         onClick={() => { setMode('file'); setResultPdfUrl(null); }}
                                         className={cn(
                                             "px-4 py-2 rounded-md text-sm font-medium transition-all",
-                                            mode === 'file' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                                            mode === 'file' ? "bg-surface-elevated text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                                         )}
                                     >
                                         Upload File
@@ -162,7 +127,7 @@ export default function HtmlToPdf() {
                                         onClick={() => { setMode('url'); setResultPdfUrl(null); }}
                                         className={cn(
                                             "px-4 py-2 rounded-md text-sm font-medium transition-all",
-                                            mode === 'url' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                                            mode === 'url' ? "bg-surface-elevated text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
                                         )}
                                     >
                                         Webpage URL
@@ -179,14 +144,14 @@ export default function HtmlToPdf() {
                                     />
                                 ) : (
                                     <div className="space-y-6">
-                                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                        <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-xl border border-border-subtle">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
                                                     <Code className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">{file.name}</p>
-                                                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+                                                    <p className="text-sm font-semibold text-text-primary truncate max-w-[200px]">{file.name}</p>
+                                                    <p className="text-xs text-text-muted">{(file.size / 1024).toFixed(2)} KB</p>
                                                 </div>
                                             </div>
                                             <Button variant="ghost" size="sm" onClick={() => setFile(null)}>Change File</Button>
@@ -197,17 +162,17 @@ export default function HtmlToPdf() {
                                 <div className="space-y-4">
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <LinkIcon className="h-5 w-5 text-gray-400" />
+                                            <LinkIcon className="h-5 w-5 text-text-faint" />
                                         </div>
                                         <input
                                             type="url"
                                             placeholder="https://example.com"
-                                            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-orange-500 focus:border-orange-500 sm:text-sm shadow-sm"
+                                            className="block w-full pl-10 pr-3 py-3 border border-border-medium rounded-xl focus:ring-orange-500 focus:border-orange-500 sm:text-sm shadow-sm"
                                             value={url}
                                             onChange={(e) => setUrl(e.target.value)}
                                         />
                                     </div>
-                                    <div className="bg-blue-50 p-4 rounded-lg flex gap-3 text-sm text-blue-700">
+                                    <div className="bg-primary/5 p-4 rounded-lg flex gap-3 text-sm text-blue-700">
                                         <span>ℹ️</span>
                                         <p>Note: Some websites may block direct access. If this fails, please save the page as HTML (Ctrl+S) and use the "Upload File" tab.</p>
                                     </div>
@@ -221,25 +186,25 @@ export default function HtmlToPdf() {
                                 disabled={(mode === 'file' && !file) || (mode === 'url' && !url)}
                             >
                                 <ArrowRightLeft className="w-5 h-5 mr-2" />
-                                Convert to PDF
+                                {isProcessing ? progressMessage || 'Converting...' : 'Convert to PDF'}
                             </Button>
                         </Card>
-                    </motion.div>
+                    </m.div>
                 ) : (
-                    <motion.div
+                    <m.div
                         key="result"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className="text-center space-y-6"
                     >
                         <Card className="p-12 flex flex-col items-center gap-6">
-                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center text-green-500">
                                 <CheckCircle className="w-12 h-12" />
                             </div>
 
                             <div className="space-y-2">
-                                <h3 className="text-2xl font-bold text-gray-900">Conversion Complete!</h3>
-                                <p className="text-gray-500 text-lg">Your content has been converted to PDF.</p>
+                                <h3 className="text-2xl font-bold text-text-primary">Conversion Complete!</h3>
+                                <p className="text-text-muted text-lg">Your content has been converted to PDF.</p>
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
@@ -266,7 +231,7 @@ export default function HtmlToPdf() {
                                 </Button>
                             </div>
                         </Card>
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
         </div>

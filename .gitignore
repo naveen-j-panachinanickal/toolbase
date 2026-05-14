@@ -16,7 +16,7 @@ __pycache__
 
 # testing
 /coverage
-/public/imgly
+
 # next.js
 /.next/
 /out/
@@ -26,7 +26,13 @@ __pycache__
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
+
+# more debug/temp
+.eslintcache
+.npm/
+.turbo/
 
 # debug
 npm-debug.log*
@@ -50,3 +56,19 @@ next-env.d.ts
 # others
 *.csv
 *test.json
+
+# modal
+.gemini/
+.milestones/
+
+# rust / wasm
+/rust/**/target/
+/rust/target/
+/public/wasm/**/pkg/
+!/public/wasm/**/.gitkeep
+/public/wasm/pyodide/
+.cache/
+
+# other
+mocks
+.claude/

@@ -1,75 +1,58 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RedactRequest, RedactResponse } from '@/types/redact';
 
-// Persistent Worker Singleton
-let workerInstance: Worker | null = null;
-let workerReadyPromise: Promise<boolean> | null = null;
+export type RedactEngineLabel = 'Rust WASM' | 'Unavailable';
 
-function getRedactWorker() {
-    if (!workerInstance) {
-        console.log("Worker Manager: Initializing Redact Worker (Singleton)...");
-        workerInstance = new Worker(new URL('../workers/redact.worker.ts', import.meta.url));
-
-        workerReadyPromise = new Promise((resolve) => {
-            const tempListener = (event: MessageEvent) => {
-                if (event.data.type === 'READY') {
-                    console.log("Worker Manager: Redact Worker Ready");
-                    workerInstance?.removeEventListener('message', tempListener);
-                    resolve(true);
-                }
-            };
-            workerInstance?.addEventListener('message', tempListener);
-        });
-    }
-    return { worker: workerInstance, ready: workerReadyPromise };
-}
+import { redactSecretsWorker } from '@/workers/instances';
 
 export function useRedactWorker() {
-    const [isReady, setIsReady] = useState(false);
+    const [isReady, setIsReady] = useState(redactSecretsWorker.readyState === 'ready');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [engineLabel, setEngineLabel] = useState<RedactEngineLabel>(
+        redactSecretsWorker.readyState === 'ready' ? 'Rust WASM' : 'Unavailable'
+    );
 
     useEffect(() => {
-        // Init or check existing
-        const { ready } = getRedactWorker();
-
-        // If already ready, set state immediately
-        ready?.then(() => {
-            setIsReady(true);
-        });
-
-    }, []);
-
-    const redact = useCallback((request: RedactRequest): Promise<RedactResponse> => {
-        return new Promise((resolve, reject) => {
-            const { worker } = getRedactWorker();
-            if (!worker) {
-                reject(new Error('Worker not initialized'));
-                return;
+        const handleReadyStateChange = (state: string, message?: string) => {
+            setIsReady(state === 'ready');
+            setEngineLabel(state === 'ready' ? 'Rust WASM' : 'Unavailable');
+            if (state === 'cold' && message) {
+                setError(message);
             }
+        };
 
-            setIsLoading(true);
-            setError(null);
-
-            const handleMessage = (event: MessageEvent) => {
-                const { type, data, error: workerError } = event.data;
-
-                if (type === 'REDACT_RESULT') {
-                    worker.removeEventListener('message', handleMessage);
-                    setIsLoading(false);
-                    resolve(data);
-                } else if (type === 'REDACT_ERROR') {
-                    worker.removeEventListener('message', handleMessage);
-                    setIsLoading(false);
-                    setError(workerError);
-                    reject(new Error(workerError));
-                }
-            };
-
-            worker.addEventListener('message', handleMessage);
-            worker.postMessage({ type: 'REDACT', data: request });
+        redactSecretsWorker.onReadyStateChange = handleReadyStateChange;
+        
+        // Trigger initialization
+        redactSecretsWorker.init().catch(err => {
+            console.error('Failed to init redact secrets worker:', err);
         });
+
+        // Initial sync
+        handleReadyStateChange(redactSecretsWorker.readyState);
+
+        return () => {
+            if (redactSecretsWorker.onReadyStateChange === handleReadyStateChange) {
+                redactSecretsWorker.onReadyStateChange = undefined;
+            }
+        };
     }, []);
 
-    return { redact, isReady, isLoading, error };
+    const redact = useCallback(async (request: RedactRequest): Promise<RedactResponse> => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const result = await redactSecretsWorker.execute('redact', request as any);
+            return result as RedactResponse;
+        } catch (err: any) {
+            const msg = err.message || 'Redaction failed';
+            setError(msg);
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    return { redact, isReady, isLoading, error, engineLabel };
 }

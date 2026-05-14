@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>QR Forge — Complete Toolkit</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#07080d;
+  --surface:#0e1018;
+  --card:#13151f;
+  --border:#1f2235;
+  --border2:#2a2d45;
+  --a1:#c8f135;   /* lime */
+  --a2:#f1356a;   /* pink */
+  --a3:#35b8f1;   /* cyan */
+  --a4:#f1a435;   /* amber */
+  --text:#eef0f8;
+  --muted:#5a5f7a;
+  --muted2:#3a3f58;
+  --glow1:rgba(200,241,53,0.12);
+  --glow2:rgba(241,53,106,0.12);
+  --glow3:rgba(53,184,241,0.12);
+  --glow4:rgba(241,164,53,0.12);
+  --radius:2px;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk',sans-serif;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:3rem 1rem 4rem;
+  overflow-x:hidden;
+}
+
+/* ── Noise texture overlay ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:999;opacity:.6;
+}
+
+/* ── Grid bg ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px;
+  opacity:.4;pointer-events:none;
+}
+
+.wrap{position:relative;z-index:1;width:100%;max-width:680px}
+
+/* ── Header ── */
+.site-header{text-align:center;margin-bottom:3.5rem}
+
+.logo-mark{
+  display:inline-flex;align-items:center;gap:0.6rem;
+  font-family:'Fira Code',monospace;font-size:0.7rem;
+  letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:1.5rem;
+}
+.logo-mark span{
+  display:inline-block;width:8px;height:8px;
+  background:var(--a1);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+h1{
+  font-size:clamp(2.5rem,7vw,4rem);
+  font-weight:700;
+  letter-spacing:-.04em;
+  line-height:1;
+  margin-bottom:.75rem;
+}
+h1 em{font-style:normal;color:var(--a1)}
+
+.tagline{
+  font-family:'Fira Code',monospace;
+  font-size:.72rem;color:var(--muted);
+  letter-spacing:.08em;
+}
+
+/* ── Mode grid ── */
+.mode-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:.5rem;
+  margin-bottom:2rem;
+}
+
+.mode-btn{
+  background:var(--card);
+  border:1px solid var(--border);
+  color:var(--muted);
+  padding:1rem .75rem;
+  cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:.78rem;
+  font-weight:600;
+  letter-spacing:.04em;
+  text-align:left;
+  transition:all .2s;
+  display:flex;align-items:center;gap:.6rem;
+  position:relative;overflow:hidden;
+}
+.mode-btn::before{
+  content:'';position:absolute;inset:0;
+  opacity:0;transition:opacity .2s;
+}
+.mode-btn:hover{border-color:var(--border2);color:var(--text)}
+
+.mode-btn[data-mode="url2qr"]   .mode-icon{color:var(--a1)}
+.mode-btn[data-mode="qr2url"]   .mode-icon{color:var(--a2)}
+.mode-btn[data-mode="img2qr"]   .mode-icon{color:var(--a3)}
+.mode-btn[data-mode="qr2img"]   .mode-icon{color:var(--a4)}
+
+.mode-btn.active[data-mode="url2qr"]{border-color:var(--a1);color:var(--a1);box-shadow:0 0 24px var(--glow1),inset 0 0 24px var(--glow1)}
+.mode-btn.active[data-mode="qr2url"]{border-color:var(--a2);color:var(--a2);box-shadow:0 0 24px var(--glow2),inset 0 0 24px var(--glow2)}
+.mode-btn.active[data-mode="img2qr"]{border-color:var(--a3);color:var(--a3);box-shadow:0 0 24px var(--glow3),inset 0 0 24px var(--glow3)}
+.mode-btn.active[data-mode="qr2img"]{border-color:var(--a4);color:var(--a4);box-shadow:0 0 24px var(--glow4),inset 0 0 24px var(--glow4)}
+
+.mode-icon{font-size:1.1rem;flex-shrink:0}
+.mode-label{display:flex;flex-direction:column;gap:.15rem}
+.mode-label strong{font-size:.82rem}
+.mode-label span{font-family:'Fira Code',monospace;font-size:.6rem;opacity:.6;font-weight:400}
+
+/* ── Card ── */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  padding:2rem;
+  position:relative;
+  animation:slideIn .35s ease forwards;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.card-accent-bar{
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--active-color,var(--a1)),transparent 70%);
+}
+
+/* Dynamic accent color per mode */
+.card[data-active="url2qr"] { --active-color: var(--a1); }
+.card[data-active="qr2url"] { --active-color: var(--a2); }
+.card[data-active="img2qr"] { --active-color: var(--a3); }
+.card[data-active="qr2img"] { --active-color: var(--a4); }
+
+/* ── Panels ── */
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── Form elements ── */
+.field{margin-bottom:1.25rem}
+
+.flabel{
+  display:block;
+  font-family:'Fira Code',monospace;
+  font-size:.62rem;letter-spacing:.12em;
+  color:var(--muted);text-transform:uppercase;
+  margin-bottom:.45rem;
+}
+
+.finput{
+  width:100%;
+  background:var(--bg);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-family:'Fira Code',monospace;
+  font-size:.85rem;
+  padding:.8rem 1rem;
+  outline:none;
+  transition:border-color .2s,box-shadow .2s;
+  caret-color:var(--active-color,var(--a1));
+}
+.finput::placeholder{color:var(--muted2)}
+.finput:focus{
+  border-color:var(--active-color,var(--a1));
+  box-shadow:0 0 0 1px var(--active-color,var(--a1)),0 0 18px var(--glow1);
+}
+
+/* Row layout */
+.row{display:flex;gap:.6rem;align-items:flex-end}
+.row .field{flex:1;margin-bottom:0}
+
+/* ── Buttons ── */
+.btn{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:.75rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;
+  padding:.75rem 1.5rem;
+  border:none;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+  flex-shrink:0;
+}
+.btn-accent{
+  background:var(--active-color,var(--a1));
+  color:#07080d;
+}
+.btn-accent:hover{filter:brightness(1.15)}
+.btn-accent:active{transform:scale(.97)}
+
+.btn-ghost{
+  background:transparent;
+  color:var(--text);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover{border-color:var(--active-color,var(--a1));color:var(--active-color,var(--a1))}
+.btn-ghost.done{border-color:var(--active-color,var(--a1));color:var(--active-color,var(--a1))}
+
+/* ── Error ── */
+.err{
+  display:none;
+  font-family:'Fira Code',monospace;font-size:.67rem;
+  color:var(--a2);margin-top:.4rem;padding-left:.25rem;
+}
+.err.show{display:block}
+
+/* ── Options strip ── */
+.opts{
+  display:flex;gap:.6rem;flex-wrap:wrap;
+  padding-top:1.25rem;margin-top:1.25rem;
+  border-top:1px solid var(--border);
+}
+.opt{flex:1;min-width:105px}
+.opt select,.opt input[type=color]{
+  width:100%;background:var(--bg);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-family:'Fira Code',monospace;
+  font-size:.72rem;padding:.5rem .6rem;
+  outline:none;cursor:pointer;
+  transition:border-color .2s;
+}
+.opt select:focus,.opt input[type=color]:focus{border-color:var(--active-color,var(--a1))}
+.opt input[type=color]{height:36px;padding:.15rem .35rem}
+
+/* ── Drop zone ── */
+.dropzone{
+  border:1.5px dashed var(--border);
+  background:var(--bg);
+  padding:2.5rem 1rem;
+  text-align:center;
+  cursor:pointer;
+  transition:border-color .2s,background .2s;
+  position:relative;
+  margin-bottom:1rem;
+}
+.dropzone:hover,.dropzone.over{
+  border-color:var(--active-color,var(--a1));
+  background:rgba(255,255,255,.02);
+}
+.dropzone input[type=file]{
+  position:absolute;inset:0;opacity:0;
+  cursor:pointer;width:100%;height:100%;
+}
+.dz-icon{font-size:1.8rem;margin-bottom:.5rem;display:block}
+.dz-title{font-size:.85rem;font-weight:600;margin-bottom:.25rem}
+.dz-hint{font-family:'Fira Code',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.06em}
+
+/* ── Preview strip ── */
+.preview-strip{
+  display:none;
+  align-items:center;gap:.85rem;
+  background:var(--bg);border:1px solid var(--border);
+  padding:.65rem .9rem;margin-bottom:1rem;
+}
+.preview-strip.show{display:flex}
+.prev-thumb{width:44px;height:44px;object-fit:cover;border:1px solid var(--border);flex-shrink:0}
+.prev-info{flex:1;min-width:0}
+.prev-name{font-family:'Fira Code',monospace;font-size:.68rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prev-size{font-family:'Fira Code',monospace;font-size:.58rem;color:var(--muted);margin-top:.15rem}
+.btn-rm{
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);font-family:'Fira Code',monospace;
+  font-size:.6rem;padding:.28rem .55rem;cursor:pointer;
+  transition:all .15s;flex-shrink:0;
+}
+.btn-rm:hover{border-color:var(--a2);color:var(--a2)}
+
+/* ── Slider ── */
+.slider-row{
+  display:none;align-items:center;gap:.75rem;
+  margin-bottom:1.1rem;
+}
+.slider-row.show{display:flex}
+.slider-row .flabel{margin:0;white-space:nowrap}
+input[type=range]{flex:1;accent-color:var(--active-color,var(--a1));cursor:pointer;height:3px}
+.slider-val{font-family:'Fira Code',monospace;font-size:.68rem;color:var(--active-color,var(--a1));min-width:30px;text-align:right}
+
+/* ── Divider ── */
+.divider{
+  display:flex;align-items:center;gap:.6rem;
+  margin:1.5rem 0 1.25rem;
+}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.divider span{font-family:'Fira Code',monospace;font-size:.58rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+
+/* ── QR output ── */
+.qr-out{
+  display:none;flex-direction:column;
+  align-items:center;gap:1.5rem;
+  padding-top:1.5rem;
+  border-top:1px solid var(--border);
+  animation:slideIn .4s ease forwards;
+}
+.qr-out.show{display:flex}
+
+.qr-frame{
+  position:relative;
+  padding:1.2rem;
+  background:#fff;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+/* Corner ticks */
+.qr-frame::before,.qr-frame::after,.tick-br,.tick-bl{
+  content:'';position:absolute;
+  width:14px;height:14px;
+  border-color:var(--active-color,var(--a1));border-style:solid;
+}
+.qr-frame::before{top:-2px;left:-2px;border-width:2px 0 0 2px}
+.qr-frame::after{top:-2px;right:-2px;border-width:2px 2px 0 0}
+.tick-br{bottom:-2px;right:-2px;border-width:0 2px 2px 0}
+.tick-bl{bottom:-2px;left:-2px;border-width:0 0 2px 2px}
+
+.badge-logo{
+  display:none;position:absolute;top:-9px;right:-9px;
+  background:var(--a3);color:#07080d;
+  font-family:'Fira Code',monospace;font-size:.5rem;
+  padding:.18rem .4rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+}
+.badge-logo.show{display:block}
+
+#qrCanvas{display:block}
+
+.qr-caption{
+  font-family:'Fira Code',monospace;
+  font-size:.68rem;color:var(--muted);
+  text-align:center;word-break:break-all;max-width:400px;
+}
+.qr-caption strong{color:var(--active-color,var(--a1))}
+
+.action-row{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
+
+/* ── Result box (for QR→URL / QR→IMG) ── */
+.result-box{
+  display:none;
+  border:1px solid var(--border);
+  background:var(--bg);
+  padding:1.25rem 1.5rem;
+  animation:slideIn .35s ease forwards;
+  margin-top:1.25rem;
+}
+.result-box.show{display:block}
+
+.result-label{
+  font-family:'Fira Code',monospace;
+  font-size:.6rem;letter-spacing:.12em;
+  color:var(--muted);text-transform:uppercase;margin-bottom:.6rem;
+}
+.result-url{
+  font-family:'Fira Code',monospace;
+  font-size:.82rem;color:var(--a1);
+  word-break:break-all;line-height:1.6;
+}
+.result-url a{color:inherit;text-decoration:none}
+.result-url a:hover{text-decoration:underline}
+
+.result-img-wrap{text-align:center;margin-top:.5rem}
+.result-img-wrap img{max-width:100%;border:1px solid var(--border)}
+
+.result-actions{display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap}
+
+/* ── Scanning indicator ── */
+.scan-status{
+  display:none;
+  font-family:'Fira Code',monospace;font-size:.7rem;
+  color:var(--muted);text-align:center;margin-top:.5rem;
+}
+.scan-status.show{display:block}
+.scan-status.ok{color:var(--a1)}
+.scan-status.fail{color:var(--a2)}
+
+/* ── Footer ── */
+.site-footer{
+  margin-top:3rem;
+  font-family:'Fira Code',monospace;
+  font-size:.58rem;color:var(--muted);
+  letter-spacing:.08em;text-align:center;
+}
+
+/* ── Responsive ── */
+@media(max-width:480px){
+  .mode-grid{grid-template-columns:1fr 1fr}
+  .card{padding:1.4rem}
+  .opts{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="logo-mark"><span></span>qr_forge<span></span></div>
+    <h1>QR <em>Toolkit</em></h1>
+    <p class="tagline">// four modes · full client-side · zero uploads</p>
+  </header>
+
+  <!-- Mode selector -->
+  <div class="mode-grid">
+    <button class="mode-btn active" data-mode="url2qr">
+      <span class="mode-icon">🔗</span>
+      <span class="mode-label">
+        <strong>URL → QR</strong>
+        <span>encode url as qr code</span>
+      </span>
+    </button>
+    <button class="mode-btn" data-mode="qr2url">
+      <span class="mode-icon">📷</span>
+      <span class="mode-label">
+        <strong>QR → URL</strong>
+        <span>scan qr · extract url</span>
+      </span>
+    </button>
+    <button class="mode-btn" data-mode="img2qr">
+      <span class="mode-icon">🖼</span>
+      <span class="mode-label">
+        <strong>Image → QR</strong>
+        <span>embed image in qr code</span>
+      </span>
+    </button>
+    <button class="mode-btn" data-mode="qr2img">
+      <span class="mode-icon">⬇</span>
+      <span class="mode-label">
+        <strong>QR → Image</strong>
+        <span>scan qr · save as image</span>
+      </span>
+    </button>
+  </div>
+
+  <!-- Card -->
+  <div class="card" id="mainCard" data-active="url2qr">
+    <div class="card-accent-bar"></div>
+
+    <!-- ══════════════════════════════
+         PANEL 1 · URL → QR
+    ══════════════════════════════ -->
+    <div class="panel active" id="p-url2qr">
+      <div class="field">
+        <label class="flabel" for="u2q-url">Enter URL</label>
+        <input class="finput" id="u2q-url" type="text" placeholder="https://example.com" autocomplete="off" spellcheck="false"/>
+        <p class="err" id="u2q-err">⚠ Please enter a valid URL (http/https)</p>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label class="flabel">Custom Label <span style="opacity:.5">(optional)</span></label>
+          <input class="finput" id="u2q-label" type="text" placeholder="My Link" autocomplete="off"/>
+        </div>
+        <button class="btn btn-accent" id="u2q-gen" style="margin-bottom:0;height:42px">Generate</button>
+      </div>
+
+      <!-- Options -->
+      <div class="divider"><span>Options</span></div>
+      <div class="opts">
+        <div class="opt">
+          <label class="flabel">Size</label>
+          <select id="u2q-size">
+            <option value="160">Small 160</option>
+            <option value="220" selected>Medium 220</option>
+            <option value="300">Large 300</option>
+            <option value="400">XL 400</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label class="flabel">Error Correct</label>
+          <select id="u2q-ec">
+            <option value="L">Low (L)</option>
+            <option value="M">Medium (M)</option>
+            <option value="Q" selected>High (Q)</option>
+            <option value="H">Max (H)</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label class="flabel">Dot Color</label>
+          <input type="color" id="u2q-dark" value="#000000"/>
+        </div>
+        <div class="opt">
+          <label class="flabel">BG Color</label>
+          <input type="color" id="u2q-light" value="#ffffff"/>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div class="qr-out" id="u2q-out">
+        <div class="qr-frame">
+          <div class="tick-br"></div><div class="tick-bl"></div>
+          <div id="u2q-canvas"></div>
+        </div>
+        <p class="qr-caption" id="u2q-caption"></p>
+        <div class="action-row">
+          <button class="btn btn-accent" id="u2q-dl">↓ Download PNG</button>
+          <button class="btn btn-ghost" id="u2q-copy">Copy URL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════
+         PANEL 2 · QR → URL
+    ══════════════════════════════ -->
+    <div class="panel" id="p-qr2url">
+      <p class="flabel" style="margin-bottom:.8rem">Upload a QR code image to extract its URL</p>
+
+      <div class="dropzone" id="q2u-drop">
+        <input type="file" id="q2u-file" accept="image/*"/>
+        <span class="dz-icon">📷</span>
+        <p class="dz-title">Drop QR code image here</p>
+        <p class="dz-hint">PNG · JPG · WEBP · GIF</p>
+      </div>
+
+      <div class="preview-strip" id="q2u-strip">
+        <img class="prev-thumb" id="q2u-thumb" src="" alt=""/>
+        <div class="prev-info">
+          <div class="prev-name" id="q2u-fname">—</div>
+          <div class="prev-size" id="q2u-fsize">—</div>
+        </div>
+        <button class="btn-rm" id="q2u-rm">✕</button>
+      </div>
+
+      <p class="scan-status" id="q2u-status">Scanning…</p>
+
+      <div class="result-box" id="q2u-result">
+        <div class="result-label">Decoded Content</div>
+        <div class="result-url" id="q2u-url-text"></div>
+        <div class="result-actions">
+          <button class="btn btn-accent" id="q2u-open" style="display:none">↗ Open URL</button>
+          <button class="btn btn-ghost" id="q2u-copy">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════
+         PANEL 3 · Image → QR
+    ══════════════════════════════ -->
+    <div class="panel" id="p-img2qr">
+      <div class="field">
+        <label class="flabel" for="i2q-url">Enter URL to encode</label>
+        <input class="finput" id="i2q-url" type="text" placeholder="https://example.com" autocomplete="off" spellcheck="false"/>
+        <p class="err" id="i2q-err">⚠ Please enter a valid URL (http/https)</p>
+      </div>
+
+      <div class="divider"><span>Logo / Image Overlay</span></div>
+
+      <div class="dropzone" id="i2q-drop">
+        <input type="file" id="i2q-file" accept="image/*"/>
+        <span class="dz-icon">🖼</span>
+        <p class="dz-title">Drop logo image here or click to browse</p>
+        <p class="dz-hint">PNG · JPG · SVG · WEBP · max 5MB</p>
+      </div>
+
+      <div class="preview-strip" id="i2q-strip">
+        <img class="prev-thumb" id="i2q-thumb" src="" alt=""/>
+        <div class="prev-info">
+          <div class="prev-name" id="i2q-fname">—</div>
+          <div class="prev-size" id="i2q-fsize">—</div>
+        </div>
+        <button class="btn-rm" id="i2q-rm">✕</button>
+      </div>
+
+      <div class="slider-row" id="i2q-slider-row">
+        <span class="flabel">Logo Size</span>
+        <input type="range" id="i2q-slider" min="10" max="40" value="22"/>
+        <span class="slider-val" id="i2q-slider-val">22%</span>
+      </div>
+
+      <div class="opts" style="padding-top:.75rem;margin-top:0;border-top:none;margin-bottom:1.25rem">
+        <div class="opt">
+          <label class="flabel">QR Size</label>
+          <select id="i2q-size">
+            <option value="160">Small 160</option>
+            <option value="220" selected>Medium 220</option>
+            <option value="300">Large 300</option>
+            <option value="400">XL 400</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label class="flabel">Error Correct</label>
+          <select id="i2q-ec">
+            <option value="Q" selected>High (Q)</option>
+            <option value="H">Max (H)</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label class="flabel">Dot Color</label>
+          <input type="color" id="i2q-dark" value="#000000"/>
+        </div>
+        <div class="opt">
+          <label class="flabel">BG Color</label>
+          <input type="color" id="i2q-light" value="#ffffff"/>
+        </div>
+      </div>
+
+      <button class="btn btn-accent" id="i2q-gen" style="width:100%">Generate QR with Logo</button>
+
+      <div class="qr-out" id="i2q-out">
+        <div class="qr-frame">
+          <div class="tick-br"></div><div class="tick-bl"></div>
+          <div id="i2q-canvas"></div>
+          <span class="badge-logo" id="i2q-badge">+logo</span>
+        </div>
+        <p class="qr-caption" id="i2q-caption"></p>
+        <div class="action-row">
+          <button class="btn btn-accent" id="i2q-dl">↓ Download PNG</button>
+          <button class="btn btn-ghost" id="i2q-copy">Copy URL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════
+         PANEL 4 · QR → Image
+    ══════════════════════════════ -->
+    <div class="panel" id="p-qr2img">
+      <p class="flabel" style="margin-bottom:.8rem">Upload a QR code — decode it and save as a clean PNG image</p>
+
+      <div class="dropzone" id="q2i-drop">
+        <input type="file" id="q2i-file" accept="image/*"/>
+        <span class="dz-icon">⬇</span>
+        <p class="dz-title">Drop QR code image here</p>
+        <p class="dz-hint">PNG · JPG · WEBP · GIF</p>
+      </div>
+
+      <div class="preview-strip" id="q2i-strip">
+        <img class="prev-thumb" id="q2i-thumb" src="" alt=""/>
+        <div class="prev-info">
+          <div class="prev-name" id="q2i-fname">—</div>
+          <div class="prev-size" id="q2i-fsize">—</div>
+        </div>
+        <button class="btn-rm" id="q2i-rm">✕</button>
+      </div>
+
+      <p class="scan-status" id="q2i-status">Scanning…</p>
+
+      <div class="result-box" id="q2i-result">
+        <div class="result-label">Decoded QR — Exported as Image</div>
+        <div class="result-img-wrap" id="q2i-img-wrap"></div>
+        <div class="result-actions">
+          <button class="btn btn-accent" id="q2i-dl">↓ Download PNG</button>
+          <button class="btn btn-ghost" id="q2i-copy-text">Copy Text</button>
+        </div>
+        <p style="font-family:'Fira Code',monospace;font-size:.6rem;color:var(--muted);margin-top:.75rem" id="q2i-decoded-text"></p>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ════════════════════════════
+     TypeScript-annotated state
+  ════════════════════════════ */
+  /** @type {'url2qr'|'qr2url'|'img2qr'|'qr2img'} */
+  let activeMode = 'url2qr';
+
+  /** @type {string|null} */ let i2q_logoDataUrl = null;
+  /** @type {string|null} */ let q2u_decoded     = null;
+  /** @type {string|null} */ let q2i_decoded     = null;
+  /** @type {string|null} */ let q2i_imageData   = null;  // PNG data URL of the scanned QR
+  /** @type {any}         */ let qrInstance      = null;
+  /** @type {any}         */ let qrInstance2     = null;
+
+  /* ════ DOM ════ */
+  const card      = /** @type {HTMLElement} */ (document.getElementById('mainCard'));
+  const modeBtns  = Array.from(document.querySelectorAll('.mode-btn'));
+  const panels    = { url2qr: 'p-url2qr', qr2url: 'p-qr2url', img2qr: 'p-img2qr', qr2img: 'p-qr2img' };
+
+  /* ════ Helpers ════ */
+
+  /** @param {string} s @returns {boolean} */
+  function validUrl(s) {
+    try { const u = new URL(s); return u.protocol==='http:'||u.protocol==='https:'; }
+    catch(_){ return false; }
+  }
+
+  /** @param {string} u @param {number=} max @returns {string} */
+  function trunc(u, max) { max=max||64; return u.length<=max?u:u.slice(0,max)+'…'; }
+
+  /** @param {number} b @returns {string} */
+  function fmtB(b){ return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+
+  /** @param {HTMLElement} el @param {boolean} v */
+  function tog(el,v){ v?el.classList.add('show'):el.classList.remove('show'); }
+  function togErr(el,v){ v?el.classList.add('show'):el.classList.remove('show'); }
+
+  /**
+   * Build a QR code into a container div.
+   * @param {HTMLElement} container
+   * @param {string} text
+   * @param {number} size
+   * @param {string} ec
+   * @param {string} dark
+   * @param {string} light
+   * @param {any} instanceHolder  object with .inst property
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  function buildQR(container, text, size, ec, dark, light, instanceHolder) {
+    return new Promise(function(resolve){
+      container.innerHTML = '';
+      instanceHolder.inst = null;
+      instanceHolder.inst = new QRCode(container, {
+        text: text,
+        width: size, height: size,
+        colorDark: dark, colorLight: light,
+        correctLevel: QRCode.CorrectLevel[ec],
+      });
+      setTimeout(function(){
+        const cv = /** @type {HTMLCanvasElement|null} */(container.querySelector('canvas'));
+        if (cv) { resolve(cv); return; }
+        const img = /** @type {HTMLImageElement|null} */(container.querySelector('img'));
+        if (img) {
+          const c = document.createElement('canvas');
+          c.width=size; c.height=size;
+          const ctx = c.getContext('2d');
+          function d(){ if(ctx) ctx.drawImage(img,0,0,size,size); resolve(c); }
+          img.complete ? d() : (img.onload=d);
+        }
+      }, 200);
+    });
+  }
+
+  /**
+   * Overlay logo centered on QR canvas.
+   * @param {HTMLCanvasElement} cv
+   * @param {string} logoSrc
+   * @param {number} pct
+   * @returns {Promise<void>}
+   */
+  function overlayLogo(cv, logoSrc, pct) {
+    return new Promise(function(resolve){
+      const logo = new Image();
+      logo.onload = function(){
+        const s    = cv.width;
+        const ls   = Math.round(s*(pct/100));
+        const x    = Math.round((s-ls)/2);
+        const y    = Math.round((s-ls)/2);
+        const pad  = Math.round(ls*0.13);
+        const ctx  = cv.getContext('2d');
+        if(!ctx){ resolve(); return; }
+        // White rounded rect backing
+        const rx=x-pad, ry=y-pad, rw=ls+pad*2, rh=ls+pad*2, r=8;
+        ctx.fillStyle='#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(rx+r,ry); ctx.lineTo(rx+rw-r,ry); ctx.arcTo(rx+rw,ry,rx+rw,ry+r,r);
+        ctx.lineTo(rx+rw,ry+rh-r); ctx.arcTo(rx+rw,ry+rh,rx+rw-r,ry+rh,r);
+        ctx.lineTo(rx+r,ry+rh); ctx.arcTo(rx,ry+rh,rx,ry+rh-r,r);
+        ctx.lineTo(rx,ry+r); ctx.arcTo(rx,ry,rx+r,ry,r);
+        ctx.closePath(); ctx.fill();
+        ctx.drawImage(logo,x,y,ls,ls);
+        resolve();
+      };
+      logo.onerror = function(){ resolve(); };
+      logo.src = logoSrc;
+    });
+  }
+
+  /**
+   * Download a canvas as PNG.
+   * @param {HTMLElement} container
+   * @param {string} filename
+   */
+  function dlCanvas(container, filename){
+    const cv  = /** @type {HTMLCanvasElement|null} */(container.querySelector('canvas'));
+    const img = /** @type {HTMLImageElement|null} */(container.querySelector('img'));
+    const a   = document.createElement('a');
+    a.download = filename;
+    if(cv)       a.href = cv.toDataURL('image/png');
+    else if(img) a.href = img.src;
+    else return;
+    a.click();
+  }
+
+  /**
+   * Decode QR from an image File using jsQR.
+   * @param {File} file
+   * @returns {Promise<{text:string, dataUrl:string}|null>}
+   */
+  function decodeQR(file){
+    return new Promise(function(resolve){
+      const reader = new FileReader();
+      reader.onload = function(e){
+        const dataUrl = /** @type {string} */(e.target.result);
+        const image   = new Image();
+        image.onload = function(){
+          const c   = document.createElement('canvas');
+          c.width   = image.naturalWidth;
+          c.height  = image.naturalHeight;
+          const ctx = c.getContext('2d');
+          if(!ctx){ resolve(null); return; }
+          ctx.drawImage(image,0,0);
+          const iData = ctx.getImageData(0,0,c.width,c.height);
+          const code  = jsQR(iData.data, iData.width, iData.height, {inversionAttempts:'dontInvert'});
+          if(code) resolve({text: code.data, dataUrl});
+          else {
+            // Try inverted
+            const code2 = jsQR(iData.data,iData.width,iData.height,{inversionAttempts:'onlyInvert'});
+            resolve(code2 ? {text:code2.data, dataUrl} : null);
+          }
+        };
+        image.onerror = function(){ resolve(null); };
+        image.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Load an image file into a drop zone / preview strip.
+   * @param {File} file
+   * @param {HTMLInputElement} thumbEl
+   * @param {HTMLElement} nameEl
+   * @param {HTMLElement} sizeEl
+   * @param {HTMLElement} strip
+   * @param {function(string):void} onDataUrl
+   */
+  function loadPreview(file, thumbEl, nameEl, sizeEl, strip, onDataUrl){
+    if(!file || !file.type.startsWith('image/')){ return; }
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const src = /** @type {string} */(e.target.result);
+      thumbEl.src = src;
+      nameEl.textContent = file.name;
+      sizeEl.textContent = fmtB(file.size);
+      tog(strip, true);
+      onDataUrl(src);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /** Wire a dropzone + file input together.
+   * @param {string} dropId
+   * @param {string} fileId
+   * @param {function(File):void} handler
+   */
+  function wireDropzone(dropId, fileId, handler){
+    const dz   = /** @type {HTMLElement} */(document.getElementById(dropId));
+    const fi   = /** @type {HTMLInputElement} */(document.getElementById(fileId));
+    dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('over'); });
+    dz.addEventListener('dragleave', function()  { dz.classList.remove('over'); });
+    dz.addEventListener('drop', function(e){
+      e.preventDefault(); dz.classList.remove('over');
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if(f) handler(f);
+    });
+    fi.addEventListener('change', function(){
+      if(fi.files && fi.files[0]) handler(fi.files[0]);
+    });
+  }
+
+  /* ════ Mode switching ════ */
+  modeBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      const mode = /** @type {string} */(btn.getAttribute('data-mode'));
+      activeMode = /** @type {any} */(mode);
+      modeBtns.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      card.setAttribute('data-active', mode);
+      Object.keys(panels).forEach(function(k){
+        const p = document.getElementById(panels[k]);
+        if(p) p.classList.toggle('active', k===mode);
+      });
+    });
+  });
+
+  /* ══════════════════════════════════
+     MODE 1 · URL → QR
+  ══════════════════════════════════ */
+  const u2q = {
+    urlIn:   /** @type {HTMLInputElement} */ (document.getElementById('u2q-url')),
+    labelIn: /** @type {HTMLInputElement} */ (document.getElementById('u2q-label')),
+    err:     document.getElementById('u2q-err'),
+    genBtn:  document.getElementById('u2q-gen'),
+    out:     document.getElementById('u2q-out'),
+    canvas:  document.getElementById('u2q-canvas'),
+    caption: document.getElementById('u2q-caption'),
+    dlBtn:   document.getElementById('u2q-dl'),
+    copyBtn: document.getElementById('u2q-copy'),
+    sizeEl:  /** @type {HTMLSelectElement} */(document.getElementById('u2q-size')),
+    ecEl:    /** @type {HTMLSelectElement} */(document.getElementById('u2q-ec')),
+    darkEl:  /** @type {HTMLInputElement}  */(document.getElementById('u2q-dark')),
+    lightEl: /** @type {HTMLInputElement}  */(document.getElementById('u2q-light')),
+    url: '',
+    holder: {inst:null},
+  };
+
+  async function u2q_generate(){
+    const raw = u2q.urlIn.value.trim();
+    if(!raw || !validUrl(raw)){ togErr(u2q.err,true); return; }
+    togErr(u2q.err,false);
+    u2q.url = raw;
+    const size  = parseInt(u2q.sizeEl.value,10);
+    await buildQR(u2q.canvas, raw, size, u2q.ecEl.value, u2q.darkEl.value, u2q.lightEl.value, u2q.holder);
+    const lbl = u2q.labelIn.value.trim() || trunc(raw);
+    u2q.caption.innerHTML = '<strong>→</strong> '+lbl;
+    tog(u2q.out, true);
+    setTimeout(()=>u2q.out.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  }
+
+  u2q.genBtn.addEventListener('click', u2q_generate);
+  u2q.urlIn.addEventListener('keydown', function(e){ if(e.key==='Enter') u2q_generate(); });
+  u2q.urlIn.addEventListener('paste',   function(){ setTimeout(u2q_generate,50); });
+  u2q.urlIn.addEventListener('input',   function(){ if(u2q.err.classList.contains('show')) togErr(u2q.err,false); });
+
+  u2q.dlBtn.addEventListener('click',   function(){ dlCanvas(u2q.canvas,'qr-url.png'); });
+  u2q.copyBtn.addEventListener('click', function(){
+    if(!u2q.url) return;
+    navigator.clipboard.writeText(u2q.url).then(function(){
+      u2q.copyBtn.textContent='✓ Copied!'; u2q.copyBtn.classList.add('done');
+      setTimeout(function(){ u2q.copyBtn.textContent='Copy URL'; u2q.copyBtn.classList.remove('done'); },2000);
+    });
+  });
+
+  /* ══════════════════════════════════
+     MODE 2 · QR → URL
+  ══════════════════════════════════ */
+  const q2u = {
+    drop:    document.getElementById('q2u-drop'),
+    file:    /** @type {HTMLInputElement} */(document.getElementById('q2u-file')),
+    strip:   document.getElementById('q2u-strip'),
+    thumb:   /** @type {HTMLImageElement} */(document.getElementById('q2u-thumb')),
+    fname:   document.getElementById('q2u-fname'),
+    fsize:   document.getElementById('q2u-fsize'),
+    rm:      document.getElementById('q2u-rm'),
+    status:  document.getElementById('q2u-status'),
+    result:  document.getElementById('q2u-result'),
+    urlText: document.getElementById('q2u-url-text'),
+    openBtn: document.getElementById('q2u-open'),
+    copyBtn: document.getElementById('q2u-copy'),
+  };
+
+  function q2u_reset(){
+    q2u.file.value='';
+    q2u.thumb.src='';
+    tog(q2u.strip,false);
+    tog(q2u.status,false);
+    tog(q2u.result,false);
+    q2u_decoded=null;
+  }
+
+  async function q2u_handle(file){
+    loadPreview(file, q2u.thumb, q2u.fname, q2u.fsize, q2u.strip, function(){});
+    q2u.status.textContent='Scanning QR code…';
+    q2u.status.className='scan-status show';
+    tog(q2u.result,false);
+
+    const decoded = await decodeQR(file);
+    if(!decoded){
+      q2u.status.textContent='⚠ No QR code detected. Try a clearer image.';
+      q2u.status.classList.add('fail');
+      return;
+    }
+    q2u_decoded = decoded.text;
+    q2u.status.textContent='✓ QR decoded successfully';
+    q2u.status.classList.add('ok');
+
+    const isUrl = validUrl(decoded.text);
+    if(isUrl){
+      q2u.urlText.innerHTML='<a href="'+decoded.text+'" target="_blank" rel="noopener">'+decoded.text+'</a>';
+      q2u.openBtn.style.display='inline-flex';
+    } else {
+      q2u.urlText.textContent = decoded.text;
+      q2u.openBtn.style.display='none';
+    }
+    tog(q2u.result, true);
+  }
+
+  wireDropzone('q2u-drop','q2u-file', q2u_handle);
+  q2u.rm.addEventListener('click', q2u_reset);
+  q2u.openBtn.addEventListener('click', function(){
+    if(q2u_decoded && validUrl(q2u_decoded)) window.open(q2u_decoded,'_blank');
+  });
+  q2u.copyBtn.addEventListener('click', function(){
+    if(!q2u_decoded) return;
+    navigator.clipboard.writeText(q2u_decoded).then(function(){
+      q2u.copyBtn.textContent='✓ Copied!'; q2u.copyBtn.classList.add('done');
+      setTimeout(function(){ q2u.copyBtn.textContent='Copy'; q2u.copyBtn.classList.remove('done'); },2000);
+    });
+  });
+
+  /* ══════════════════════════════════
+     MODE 3 · Image → QR
+  ══════════════════════════════════ */
+  const i2q = {
+    urlIn:    /** @type {HTMLInputElement} */ (document.getElementById('i2q-url')),
+    err:      document.getElementById('i2q-err'),
+    drop:     document.getElementById('i2q-drop'),
+    file:     /** @type {HTMLInputElement} */(document.getElementById('i2q-file')),
+    strip:    document.getElementById('i2q-strip'),
+    thumb:    /** @type {HTMLImageElement} */(document.getElementById('i2q-thumb')),
+    fname:    document.getElementById('i2q-fname'),
+    fsize:    document.getElementById('i2q-fsize'),
+    rm:       document.getElementById('i2q-rm'),
+    sliderRow:document.getElementById('i2q-slider-row'),
+    slider:   /** @type {HTMLInputElement} */(document.getElementById('i2q-slider')),
+    sliderVal:document.getElementById('i2q-slider-val'),
+    genBtn:   document.getElementById('i2q-gen'),
+    out:      document.getElementById('i2q-out'),
+    canvas:   document.getElementById('i2q-canvas'),
+    caption:  document.getElementById('i2q-caption'),
+    badge:    document.getElementById('i2q-badge'),
+    dlBtn:    document.getElementById('i2q-dl'),
+    copyBtn:  document.getElementById('i2q-copy'),
+    sizeEl:   /** @type {HTMLSelectElement} */(document.getElementById('i2q-size')),
+    ecEl:     /** @type {HTMLSelectElement} */(document.getElementById('i2q-ec')),
+    darkEl:   /** @type {HTMLInputElement}  */(document.getElementById('i2q-dark')),
+    lightEl:  /** @type {HTMLInputElement}  */(document.getElementById('i2q-light')),
+    url: '',
+    holder: {inst:null},
+  };
+
+  wireDropzone('i2q-drop','i2q-file', function(file){
+    if(file.size > 5*1024*1024){ alert('Image must be under 5 MB.'); return; }
+    loadPreview(file, i2q.thumb, i2q.fname, i2q.fsize, i2q.strip, function(src){
+      i2q_logoDataUrl = src;
+      tog(i2q.sliderRow, true);
+    });
+  });
+
+  i2q.rm.addEventListener('click', function(){
+    i2q_logoDataUrl=null;
+    i2q.file.value='';
+    i2q.thumb.src='';
+    tog(i2q.strip,false);
+    tog(i2q.sliderRow,false);
+  });
+
+  i2q.slider.addEventListener('input', function(){
+    i2q.sliderVal.textContent = i2q.slider.value+'%';
+  });
+
+  async function i2q_generate(){
+    const raw = i2q.urlIn.value.trim();
+    if(!raw || !validUrl(raw)){ togErr(i2q.err,true); return; }
+    togErr(i2q.err,false);
+    i2q.url = raw;
+
+    const size = parseInt(i2q.sizeEl.value,10);
+    const cv   = await buildQR(i2q.canvas, raw, size, i2q.ecEl.value, i2q.darkEl.value, i2q.lightEl.value, i2q.holder);
+
+    if(i2q_logoDataUrl){
+      await overlayLogo(cv, i2q_logoDataUrl, parseInt(i2q.slider.value,10));
+      i2q.canvas.innerHTML=''; i2q.canvas.appendChild(cv);
+      tog(i2q.badge, true);
+    } else {
+      tog(i2q.badge, false);
+    }
+
+    i2q.caption.innerHTML='<strong>→</strong> '+trunc(raw);
+    tog(i2q.out, true);
+    setTimeout(()=>i2q.out.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  }
+
+  i2q.genBtn.addEventListener('click', i2q_generate);
+  i2q.urlIn.addEventListener('keydown', function(e){ if(e.key==='Enter') i2q_generate(); });
+  i2q.urlIn.addEventListener('paste',   function(){ setTimeout(i2q_generate,50); });
+  i2q.urlIn.addEventListener('input',   function(){ if(i2q.err.classList.contains('show')) togErr(i2q.err,false); });
+
+  i2q.dlBtn.addEventListener('click',   function(){ dlCanvas(i2q.canvas,'qr-logo.png'); });
+  i2q.copyBtn.addEventListener('click', function(){
+    if(!i2q.url) return;
+    navigator.clipboard.writeText(i2q.url).then(function(){
+      i2q.copyBtn.textContent='✓ Copied!'; i2q.copyBtn.classList.add('done');
+      setTimeout(function(){ i2q.copyBtn.textContent='Copy URL'; i2q.copyBtn.classList.remove('done'); },2000);
+    });
+  });
+
+  /* ══════════════════════════════════
+     MODE 4 · QR → Image
+  ══════════════════════════════════ */
+  const q2i = {
+    drop:      document.getElementById('q2i-drop'),
+    file:      /** @type {HTMLInputElement} */(document.getElementById('q2i-file')),
+    strip:     document.getElementById('q2i-strip'),
+    thumb:     /** @type {HTMLImageElement} */(document.getElementById('q2i-thumb')),
+    fname:     document.getElementById('q2i-fname'),
+    fsize:     document.getElementById('q2i-fsize'),
+    rm:        document.getElementById('q2i-rm'),
+    status:    document.getElementById('q2i-status'),
+    result:    document.getElementById('q2i-result'),
+    imgWrap:   document.getElementById('q2i-img-wrap'),
+    dlBtn:     document.getElementById('q2i-dl'),
+    copyText:  document.getElementById('q2i-copy-text'),
+    decodedTxt:document.getElementById('q2i-decoded-text'),
+  };
+
+  function q2i_reset(){
+    q2i.file.value='';
+    q2i.thumb.src='';
+    tog(q2i.strip,false);
+    tog(q2i.status,false);
+    tog(q2i.result,false);
+    q2i_decoded=null;
+    q2i_imageData=null;
+    q2i.imgWrap.innerHTML='';
+  }
+
+  async function q2i_handle(file){
+    loadPreview(file, q2i.thumb, q2i.fname, q2i.fsize, q2i.strip, function(){});
+    q2i.status.textContent='Scanning QR code…';
+    q2i.status.className='scan-status show';
+    tog(q2i.result,false);
+
+    const decoded = await decodeQR(file);
+    if(!decoded){
+      q2i.status.textContent='⚠ No QR code detected. Try a clearer image.';
+      q2i.status.classList.add('fail');
+      return;
+    }
+
+    q2i_decoded   = decoded.text;
+    q2i_imageData = decoded.dataUrl;   // the original image as dataUrl
+
+    q2i.status.textContent='✓ QR decoded — image ready to download';
+    q2i.status.classList.add('ok');
+
+    // Show the uploaded image itself as the "QR image" for download
+    q2i.imgWrap.innerHTML='';
+    const previewImg = document.createElement('img');
+    previewImg.src   = decoded.dataUrl;
+    previewImg.style.maxWidth='100%';
+    previewImg.style.border='1px solid var(--border)';
+    previewImg.style.maxHeight='260px';
+    previewImg.style.objectFit='contain';
+    q2i.imgWrap.appendChild(previewImg);
+
+    q2i.decodedTxt.textContent='decoded: '+trunc(decoded.text,80);
+    tog(q2i.result, true);
+  }
+
+  wireDropzone('q2i-drop','q2i-file', q2i_handle);
+  q2i.rm.addEventListener('click', q2i_reset);
+
+  q2i.dlBtn.addEventListener('click', function(){
+    if(!q2i_imageData) return;
+    const a=document.createElement('a');
+    a.download='qr-image.png';
+    a.href=q2i_imageData;
+    a.click();
+  });
+
+  q2i.copyText.addEventListener('click', function(){
+    if(!q2i_decoded) return;
+    navigator.clipboard.writeText(q2i_decoded).then(function(){
+      q2i.copyText.textContent='✓ Copied!'; q2i.copyText.classList.add('done');
+      setTimeout(function(){ q2i.copyText.textContent='Copy Text'; q2i.copyText.classList.remove('done'); },2000);
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

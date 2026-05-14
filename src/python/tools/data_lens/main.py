@@ -2,6 +2,7 @@ from .loaders import load_file, get_schemas, delete_table
 from .sql_engine import run_sql
 from .python_engine import run_python
 from .json_engine import get_raw_json, query_json
+from .state import clear_all
 
 
 def handle_request(action, data):
@@ -23,7 +24,8 @@ def handle_request(action, data):
             return get_raw_json(data)
         elif action == "query_json":
             return query_json(data)
-        else:
-            return {"success": False, "error": f"Unknown action: {action}"}
+        elif action == "clear_all":
+            clear_all()
+            return {"success": True}
     except Exception as e:
         return {"success": False, "error": str(e)}

@@ -2,6 +2,7 @@ import json
 import sqlite3
 import pandas as pd
 from .state import DATA_STORE
+from .utils import df_to_js
 
 
 def prepare_df_for_sql(df):
@@ -30,17 +31,10 @@ def prepare_df_for_sql(df):
 def run_sql(data):
     """
     Execute SQL query on the data.
-
-    Supports SQLite JSON functions for querying JSON columns:
-    - json_extract(column, '$.path') - Extract value from JSON
-    - json_each(column) - Expand JSON array
-    - json_type(column) - Get JSON value type
-
-    Examples:
-    - SELECT json_extract(items, '$[0].name') as first_item FROM testdata
-    - SELECT * FROM testdata, json_each(items) as item WHERE json_extract(item.value, '$.price') > 100
+    Supports SELECT, CREATE TABLE, INSERT, UPDATE, DELETE, etc.
+    Automatically synchronizes changes back to the global DATA_STORE.
     """
-    query = data.get("query")
+    query = data.get("query", "").strip()
     if not query:
         return {"success": False, "error": "No query provided"}
 
@@ -65,17 +59,54 @@ def run_sql(data):
                         json_columns[name].append(col)
                         break
 
-        result_df = pd.read_sql_query(query, conn)
-        conn.close()
+        # Detect the type of query
+        query_lower = query.lower()
+        is_select = query_lower.startswith(
+            ("select", "with", "show", "describe", "explain", "pragma")
+        )
 
-        # Convert result to dict format for JS
-        return {
-            "success": True,
-            "columns": list(result_df.columns),
-            "data": result_df.values.tolist(),
-            "rowCount": len(result_df),
-            "json_columns": json_columns,  # Include info about JSON columns
-        }
+        if is_select:
+            # For data fetching (queries with results)
+            result_df = pd.read_sql_query(query, conn)
+            conn.close()
+            js_result = df_to_js(result_df)
+            return {
+                "success": True,
+                **js_result,
+                "json_columns": json_columns,
+            }
+        else:
+            # For data modification (DDL/DML)
+            conn.execute(query)
+            conn.commit()
+
+            # SYNC BACK: Detect all existing tables in SQLite memory
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            sqlite_tables = [row[0] for row in cursor.fetchall()]
+
+            updated_tables = []
+            for table_name in sqlite_tables:
+                # Skip internal internal tables
+                if table_name.startswith("sqlite_"):
+                    continue
+                # Read table back into DataFrame and update DATA_STORE
+                new_df = pd.read_sql_query(f'SELECT * FROM "{table_name}"', conn)
+                DATA_STORE[table_name] = new_df
+                updated_tables.append(table_name)
+
+            # Handle dropped tables: remove from DATA_STORE if not in sqlite_tables
+            for name in list(DATA_STORE.keys()):
+                if name not in sqlite_tables:
+                    del DATA_STORE[name]
+
+            conn.close()
+            return {
+                "success": True,
+                "message": f"Operation successful. Tables updated: {', '.join(updated_tables)}",
+                "schemas_updated": True,
+            }
+
     except Exception as e:
         error_msg = str(e)
 

@@ -1,7 +1,8 @@
+"use client";
+
 import React from "react";
-import { Activity } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "@/components/ui/Card";
+import { Activity, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { m, AnimatePresence } from "framer-motion";
 import { RedactResponse } from "@/types/redact";
 
 interface RedactStatsProps {
@@ -12,46 +13,68 @@ export const RedactStats: React.FC<RedactStatsProps> = ({ response }) => {
     return (
         <AnimatePresence>
             {response && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
+                <m.div
+                    initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="space-y-6"
+                    className="space-y-4"
                 >
-                    <Card className="border-none shadow-lg bg-linear-to-br from-primary/5 to-primary/10 ring-1 ring-primary/20">
-                        <div className="px-6 py-4 border-b border-primary/10 bg-white/30">
-                            <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-tight">
-                                <Activity className="w-4 h-4" />
-                                Security Audit
+                    {/* Summary Card */}
+                    <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-purple-600/5 backdrop-blur-xl overflow-hidden shadow-sm shadow-violet-500/10">
+                        <div className="px-5 py-3 border-b border-violet-500/10 bg-violet-500/5 flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-violet-500" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-violet-500">Security Audit</span>
+                        </div>
+                        
+                        <div className="p-6 text-center">
+                            <div className="flex items-center justify-center gap-3 mb-1">
+                                <m.span 
+                                    initial={{ scale: 0.5, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="text-4xl font-black text-(--text-primary)"
+                                >
+                                    {response.summary.totalMasked}
+                                </m.span>
+                                {response.summary.totalMasked > 0 ? (
+                                    <ShieldAlert className="w-6 h-6 text-violet-500 animate-pulse" />
+                                ) : (
+                                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                                )}
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-(--text-muted) leading-tight max-w-[150px] mx-auto">
+                                Secrets Neutralized
                             </div>
                         </div>
-                        <div className="p-8 text-center bg-white/40">
-                            <motion.div
-                                initial={{ scale: 0.5, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="text-5xl font-black text-primary mb-2"
-                            >
-                                {response.summary.totalMasked}
-                            </motion.div>
-                            <div className="text-[10px] font-black text-primary/40 uppercase tracking-[0.2em] text-balance leading-tight">
-                                Sensitive Entries Neutralized
-                            </div>
-                        </div>
-                    </Card>
-
-                    <div className="grid grid-cols-1 gap-3">
-                        {Object.entries(response.summary.byType).map(([type, count]) => (
-                            <motion.div
-                                key={type}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="bg-white/60 backdrop-blur-md px-5 py-4 rounded-2xl border border-gray-100 flex items-center justify-between shadow-sm group hover:border-primary/20 transition-colors"
-                            >
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-primary transition-colors">{type.replace(/_/g, ' ')}</span>
-                                <span className="text-sm font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-full group-hover:bg-primary/10 group-hover:text-primary transition-colors">{count}</span>
-                            </motion.div>
-                        ))}
                     </div>
-                </motion.div>
+
+                    {/* Breakdown List */}
+                    <div className="space-y-2">
+                        <div className="px-1 text-[10px] font-bold uppercase tracking-widest text-(--text-muted) mb-2">
+                            Detected Entities
+                        </div>
+                        {Object.entries(response.summary.byType).map(([type, count], i) => (
+                            <m.div
+                                key={type}
+                                initial={{ opacity: 0, x: 12 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.05 }}
+                                className="group flex items-center justify-between px-4 py-3 rounded-xl border border-(--border-subtle) bg-(--surface-overlay) hover:border-violet-500/30 transition-all duration-200"
+                            >
+                                <span className="text-[10px] font-bold text-(--text-muted) uppercase tracking-widest group-hover:text-violet-500 transition-colors">
+                                    {type.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-xs font-black text-(--text-primary) tabular-nums">
+                                    {count}
+                                </span>
+                            </m.div>
+                        ))}
+                        
+                        {Object.keys(response.summary.byType).length === 0 && (
+                            <div className="text-center p-8 border border-dashed border-(--border-subtle) rounded-2xl opacity-40 italic text-xs">
+                                No sensitive data found
+                            </div>
+                        )}
+                    </div>
+                </m.div>
             )}
         </AnimatePresence>
     );

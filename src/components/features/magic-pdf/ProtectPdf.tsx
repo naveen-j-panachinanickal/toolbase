@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { FileUploader } from '@/components/ui/FileUploader';
 import { Button } from '@/components/ui/Button';
 import {
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
-import { useMagicPdfWorker } from '@/hooks/useMagicPdfWorker';
+import { useTIPTool } from '@/hooks/useTIPTool';
 
 export default function ProtectPdf() {
     const [file, setFile] = useState<File | null>(null);
@@ -35,7 +35,7 @@ export default function ProtectPdf() {
     const [allowAnnotating, setAllowAnnotating] = useState(true);
     const [allowFillingForms, setAllowFillingForms] = useState(true);
 
-    const { processPdf, isReady, isProcessing: isWorkerBusy, error: workerError } = useMagicPdfWorker();
+    const { execute, isProcessing, error, progress, progressMessage, tool } = useTIPTool('magic-pdf/protect');
 
     const handleFileSelected = (files: File[]) => {
         if (files.length > 0) {
@@ -52,32 +52,27 @@ export default function ProtectPdf() {
             return;
         }
 
-        if (!isReady) {
-            alert('Encryption engine not ready yet. Please wait a moment.');
-            return;
-        }
-
         setIsProtecting(true);
 
         try {
-            // Use Python worker for encryption
-            const resultBytes = await processPdf('protect', file, {
+            // Use Python worker for encryption through TIP
+            const outputFiles = await execute([file], {
                 password: userPassword,
                 owner_password: useOwnerPassword && ownerPassword ? ownerPassword : userPassword,
-                permissions: {
+                permissions: JSON.stringify({
                     printing: allowPrinting,
                     modifying: allowModifying,
                     copying: allowCopying,
                     annotating: allowAnnotating,
                     fillingForms: allowFillingForms,
                     accessibility: true
-                }
+                })
             });
 
-            const blob = new Blob([resultBytes as any], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-
-            setProtectedPdfUrl(url);
+            if (outputFiles && outputFiles.length > 0) {
+                const url = URL.createObjectURL(outputFiles[0]);
+                setProtectedPdfUrl(url);
+            }
         } catch (error) {
             console.error('Error protecting PDF:', error);
             alert('Failed to protect PDF: ' + (error as Error).message);
@@ -98,7 +93,7 @@ export default function ProtectPdf() {
 
         if (strength <= 1) return { strength, label: 'Weak', color: 'text-red-600' };
         if (strength <= 3) return { strength, label: 'Medium', color: 'text-yellow-600' };
-        return { strength, label: 'Strong', color: 'text-green-600' };
+        return { strength, label: 'Strong', color: 'text-green-500' };
     };
 
     const userStrength = passwordStrength(userPassword);
@@ -107,7 +102,7 @@ export default function ProtectPdf() {
         <div className="w-full max-w-4xl mx-auto space-y-8">
             <AnimatePresence mode="wait">
                 {!file ? (
-                    <motion.div
+                    <m.div
                         key="upload"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -115,17 +110,11 @@ export default function ProtectPdf() {
                     >
                         <Card className="p-8">
                             <div className="text-center mb-8">
-                                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-                                    <Shield className="w-8 h-8 text-blue-600" />
+                                <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
+                                    <Shield className="w-8 h-8 text-primary" />
                                 </div>
                                 <h2 className="text-2xl font-semibold mb-2">Protect PDF</h2>
-                                <p className="text-gray-500">Encrypt your PDF with a password to prevent unauthorized access.</p>
-                                {!isReady && (
-                                    <div className="mt-4 inline-flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-                                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                                        Initializing Encryption Engine...
-                                    </div>
-                                )}
+                                <p className="text-text-muted">Encrypt your PDF with a password to prevent unauthorized access.</p>
                             </div>
                             <FileUploader
                                 onFilesSelected={handleFileSelected}
@@ -134,9 +123,9 @@ export default function ProtectPdf() {
                                 className="max-w-2xl mx-auto"
                             />
                         </Card>
-                    </motion.div>
+                    </m.div>
                 ) : (
-                    <motion.div
+                    <m.div
                         key="workspace"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -146,12 +135,12 @@ export default function ProtectPdf() {
                         <Card className="p-6">
                             <div className="flex items-center justify-between flex-wrap gap-4">
                                 <div className="flex items-center gap-4">
-                                    <div className="h-12 w-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                                    <div className="h-12 w-12 bg-primary/5 text-primary rounded-xl flex items-center justify-center">
                                         <Lock className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="font-medium text-gray-900">{file.name}</h3>
-                                        <p className="text-sm text-gray-500">Configure password protection</p>
+                                        <h3 className="font-medium text-text-primary">{file.name}</h3>
+                                        <p className="text-sm text-text-muted">Configure password protection</p>
                                     </div>
                                 </div>
                                 {!protectedPdfUrl && (
@@ -164,17 +153,17 @@ export default function ProtectPdf() {
 
                         {/* Result Section */}
                         {protectedPdfUrl && (
-                            <motion.div
+                            <m.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                             >
-                                <Card className="p-8 bg-green-50/50 border-green-100">
+                                <Card className="p-8 bg-green-500/5/50 border-green-100">
                                     <div className="flex flex-col items-center text-center">
-                                        <div className="h-16 w-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                                        <div className="h-16 w-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4">
                                             <CheckCircle className="w-8 h-8" />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">PDF Protected!</h3>
-                                        <p className="text-gray-600 mb-6">Your PDF has been encrypted with a password.</p>
+                                        <h3 className="text-2xl font-bold text-text-primary mb-2">PDF Protected!</h3>
+                                        <p className="text-text-muted mb-6">Your PDF has been encrypted with a password.</p>
 
                                         <div className="flex gap-4">
                                             <Button
@@ -198,18 +187,18 @@ export default function ProtectPdf() {
                                         </div>
                                     </div>
                                 </Card>
-                            </motion.div>
+                            </m.div>
                         )}
 
                         {/* Password Configuration */}
                         {!protectedPdfUrl && (
                             <Card className="p-6">
-                                <h4 className="font-semibold text-gray-900 mb-4">Password Settings</h4>
+                                <h4 className="font-semibold text-text-primary mb-4">Password Settings</h4>
 
                                 {/* User Password */}
                                 <div className="space-y-4 mb-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-text-secondary mb-2">
                                             User Password (Required)
                                         </label>
                                         <div className="relative">
@@ -218,19 +207,19 @@ export default function ProtectPdf() {
                                                 value={userPassword}
                                                 onChange={(e) => setUserPassword(e.target.value)}
                                                 placeholder="Enter password to open the PDF"
-                                                className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                                className="w-full px-4 py-2 pr-10 border border-border-medium rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                                             />
                                             <button
                                                 type="button"
                                                 onClick={() => setShowUserPassword(!showUserPassword)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-muted"
                                             >
                                                 {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                             </button>
                                         </div>
                                         {userPassword && (
                                             <div className="mt-2 flex items-center gap-2">
-                                                <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                                <div className="flex-1 h-1 bg-border-medium rounded-full overflow-hidden">
                                                     <div
                                                         className={cn(
                                                             "h-full transition-all duration-300",
@@ -245,7 +234,7 @@ export default function ProtectPdf() {
                                                 </span>
                                             </div>
                                         )}
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-text-muted mt-1">
                                             This password will be required to open the PDF
                                         </p>
                                     </div>
@@ -257,21 +246,21 @@ export default function ProtectPdf() {
                                             id="useOwnerPassword"
                                             checked={useOwnerPassword}
                                             onChange={(e) => setUseOwnerPassword(e.target.checked)}
-                                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                            className="w-4 h-4 text-primary border-border-medium rounded focus:ring-primary"
                                         />
-                                        <label htmlFor="useOwnerPassword" className="text-sm text-gray-700">
+                                        <label htmlFor="useOwnerPassword" className="text-sm text-text-secondary">
                                             Set separate owner password (advanced)
                                         </label>
                                     </div>
 
                                     {/* Owner Password */}
                                     {useOwnerPassword && (
-                                        <motion.div
+                                        <m.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
                                             exit={{ opacity: 0, height: 0 }}
                                         >
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            <label className="block text-sm font-medium text-text-secondary mb-2">
                                                 Owner Password
                                             </label>
                                             <div className="relative">
@@ -280,27 +269,27 @@ export default function ProtectPdf() {
                                                     value={ownerPassword}
                                                     onChange={(e) => setOwnerPassword(e.target.value)}
                                                     placeholder="Enter owner password"
-                                                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                                                    className="w-full px-4 py-2 pr-10 border border-border-medium rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowOwnerPassword(!showOwnerPassword)}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-muted"
                                                 >
                                                     {showOwnerPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                 </button>
                                             </div>
-                                            <p className="text-xs text-gray-500 mt-1">
+                                            <p className="text-xs text-text-muted mt-1">
                                                 Owner password allows changing permissions
                                             </p>
-                                        </motion.div>
+                                        </m.div>
                                     )}
                                 </div>
 
                                 {/* Permissions */}
                                 <div className="border-t pt-6">
-                                    <h5 className="font-medium text-gray-900 mb-3">Document Permissions</h5>
-                                    <p className="text-sm text-gray-500 mb-4">Control what users can do with the PDF</p>
+                                    <h5 className="font-medium text-text-primary mb-3">Document Permissions</h5>
+                                    <p className="text-sm text-text-muted mb-4">Control what users can do with the PDF</p>
 
                                     <div className="space-y-3">
                                         <PermissionCheckbox
@@ -346,12 +335,12 @@ export default function ProtectPdf() {
                                     <Button
                                         size="lg"
                                         onClick={handleProtect}
-                                        disabled={isProtecting || isWorkerBusy || !userPassword}
-                                        isLoading={isProtecting || isWorkerBusy}
+                                        disabled={isProtecting || isProcessing || !userPassword}
+                                        isLoading={isProtecting || isProcessing}
                                         className="w-full max-w-xs"
                                     >
                                         <Lock className="w-4 h-4 mr-2" />
-                                        {(isProtecting || isWorkerBusy) ? 'Protecting...' : 'Protect PDF'}
+                                        {(isProtecting || isProcessing) ? progressMessage || 'Protecting...' : 'Protect PDF'}
                                     </Button>
 
                                     {!userPassword && (
@@ -363,7 +352,7 @@ export default function ProtectPdf() {
                                 </div>
                             </Card>
                         )}
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
         </div>
@@ -380,19 +369,19 @@ interface PermissionCheckboxProps {
 
 const PermissionCheckbox = ({ id, label, description, checked, onChange }: PermissionCheckboxProps) => {
     return (
-        <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+        <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-surface-secondary transition-colors">
             <input
                 type="checkbox"
                 id={id}
                 checked={checked}
                 onChange={(e) => onChange(e.target.checked)}
-                className="mt-0.5 w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                className="mt-0.5 w-4 h-4 text-primary border-border-medium rounded focus:ring-primary"
             />
             <div className="flex-1">
-                <label htmlFor={id} className="text-sm font-medium text-gray-900 cursor-pointer">
+                <label htmlFor={id} className="text-sm font-medium text-text-primary cursor-pointer">
                     {label}
                 </label>
-                <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+                <p className="text-xs text-text-muted mt-0.5">{description}</p>
             </div>
         </div>
     );

@@ -29,12 +29,25 @@ export async function splitPdf(file: File, pageGroups: number[][]): Promise<Uint
     return resultFiles;
 }
 
+/**
+ * Converts a data URL string into a Uint8Array without any network requests.
+ * Handles both `data:image/png;base64,...` and plain base64 strings.
+ */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+    const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    const binary = atob(base64);
+    return Uint8Array.from({ length: binary.length }, (_, i) => binary.charCodeAt(i));
+}
+
 export async function compressPdfExtreme(file: File, quality: number = 0.3): Promise<Uint8Array> {
-    // Load pdf.js dynamically
+    // Load pdf.js dynamically — use local worker to avoid CDN requests
     const pdfjsLib = await import('pdfjs-dist');
 
     if (typeof window !== 'undefined' && 'Worker' in window) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/build/pdf.worker.min.mjs',
+            import.meta.url
+        ).toString();
     }
 
     // Load the PDF
@@ -56,9 +69,10 @@ export async function compressPdfExtreme(file: File, quality: number = 0.3): Pro
 
         // Render PDF page to canvas
         await page.render({
+            canvas,
             canvasContext: context,
             viewport: viewport,
-        } as any).promise;
+        }).promise;
 
         // Convert canvas to compressed image
         const blob = await new Promise<Blob>((resolve) => {
@@ -134,7 +148,10 @@ export async function renderPdfPageToImage(file: File, pageIndex: number, scale:
     const pdfjsLib = await import('pdfjs-dist');
 
     if (typeof window !== 'undefined' && 'Worker' in window) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+            'pdfjs-dist/build/pdf.worker.min.mjs',
+            import.meta.url
+        ).toString();
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -148,9 +165,10 @@ export async function renderPdfPageToImage(file: File, pageIndex: number, scale:
     canvas.height = viewport.height;
 
     await page.render({
+        canvas,
         canvasContext: context,
         viewport: viewport,
-    } as any).promise;
+    }).promise;
 
     return canvas.toDataURL('image/png');
 }
@@ -169,12 +187,16 @@ export interface EncryptionOptions {
     };
 }
 
+// Internal type alias matching pdf-lib's SaveOptions shape for encryption
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EncryptSaveOptions = Record<string, any>;
+
 export async function encryptPdf(file: File, options: EncryptionOptions): Promise<Uint8Array> {
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);
 
     // Set passwords
-    const encryptOptions: any = {
+    const encryptOptions: EncryptSaveOptions = {
         userPassword: options.userPassword,
         ownerPassword: options.ownerPassword || options.userPassword,
     };
@@ -210,8 +232,8 @@ export async function signPdf(
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);
 
-    // Embed the signature image
-    const signatureImageBytes = await fetch(signatureDataUrl).then(res => res.arrayBuffer());
+    // Embed the signature image — decode data URL locally, no network request
+    const signatureImageBytes = dataUrlToBytes(signatureDataUrl);
 
     let signatureImage;
     if (signatureDataUrl.includes('image/png')) {

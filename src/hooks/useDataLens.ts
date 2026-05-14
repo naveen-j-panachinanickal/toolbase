@@ -1,5 +1,5 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createTimer } from '@/lib/performance';
 
 export interface EtlState {
     isReady: boolean;
@@ -7,6 +7,7 @@ export interface EtlState {
     error: string | null;
     schemas: TableSchema[];
     queryResult: QueryResult | null;
+    tableResult: QueryResult | null;
 }
 
 export interface TableSchema {
@@ -30,9 +31,11 @@ export interface UseDataLensResult extends EtlState {
     runPython: (code: string) => Promise<any>;
     refreshSchemas: () => Promise<any>;
     deleteTable: (tableName: string) => Promise<any>;
+    clearAllTables: () => Promise<void>;
     clearQueryResult: () => void;
     getRawJson: (tableName: string) => Promise<any>;
     queryJson: (tableName: string, query: string) => Promise<any>;
+    selectTableData: (tableName: string) => Promise<any>;
 }
 
 // Persistent Worker Singleton
@@ -64,15 +67,13 @@ export function useDataLens(): UseDataLensResult {
     const [error, setError] = useState<string | null>(null);
     const [schemas, setSchemas] = useState<TableSchema[]>([]);
     const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+    const [tableResult, setTableResult] = useState<QueryResult | null>(null);
 
     // Initial load
     useEffect(() => {
         const { ready } = getDataLensWorker();
         ready?.then(() => {
             setIsReady(true);
-            // On re-connect, we might want to fetch existing state from worker if we were advanced enough,
-            // but for now we just acknowledge readiness.
-            // If data persisted in worker memory, we can fetch schemas.
             refreshSchemas();
         }).catch(err => {
             console.error("Worker initialization failed", err);
@@ -87,6 +88,10 @@ export function useDataLens(): UseDataLensResult {
                 reject(new Error("Worker not initialized"));
                 return;
             }
+
+            const timer = createTimer();
+            timer.start();
+
             setIsProcessing(true);
             setError(null);
 
@@ -94,16 +99,16 @@ export function useDataLens(): UseDataLensResult {
 
             const handleMessage = (event: MessageEvent) => {
                 const { type, id, data: resultData, error } = event.data;
-                // console.log('Hook: Received message from worker:', { type, id, messageId, hasData: !!resultData });
                 if (id === messageId) {
                     worker.removeEventListener('message', handleMessage);
+                    
+                    timer.stop('data-lens');
+                    
                     setIsProcessing(false);
                     if (type === 'ERROR') {
-                        console.log('Hook: Error received:', error);
                         setError(error);
                         reject(new Error(error));
                     } else {
-                        // console.log('Hook: Success! Result data:', resultData);
                         resolve(resultData);
                     }
                 }
@@ -133,7 +138,6 @@ export function useDataLens(): UseDataLensResult {
             });
 
             if (res.success) {
-                // Refresh schemas
                 const schemaRes = await sendMessage('get_schemas', {});
                 if (schemaRes.success) {
                     setSchemas(schemaRes.schemas);
@@ -154,6 +158,9 @@ export function useDataLens(): UseDataLensResult {
             const res = await sendMessage('run_sql', { query });
             if (res && res.success) {
                 setQueryResult(res);
+                if (res.schemas_updated) {
+                    await refreshSchemas();
+                }
             } else {
                 setError(res?.error || 'Unknown error');
             }
@@ -184,9 +191,6 @@ export function useDataLens(): UseDataLensResult {
             if (res.success) {
                 setSchemas(res.schemas);
                 return res.schemas;
-            } else {
-                // Allow failure if not ready yet
-                // throw new Error(res.error || "Failed to fetch schemas");
             }
         } catch (err: any) {
             console.error(err);
@@ -197,7 +201,6 @@ export function useDataLens(): UseDataLensResult {
         try {
             const res = await sendMessage('delete_table', { table_name: tableName });
             if (res.success) {
-                // Refresh schemas after deletion
                 const schemaRes = await sendMessage('get_schemas', {});
                 if (schemaRes.success) {
                     setSchemas(schemaRes.schemas);
@@ -209,6 +212,20 @@ export function useDataLens(): UseDataLensResult {
         } catch (err: any) {
             setError(err.message);
             throw err;
+        }
+    }, [sendMessage]);
+
+    const clearAllTables = useCallback(async () => {
+        setIsProcessing(true);
+        try {
+            await sendMessage('clear_all', {});
+            setSchemas([]);
+            setTableResult(null);
+            setQueryResult(null);
+        } catch (err: any) {
+            setError(err.message || 'Failed to clear tables');
+        } finally {
+            setIsProcessing(false);
         }
     }, [sendMessage]);
 
@@ -230,7 +247,6 @@ export function useDataLens(): UseDataLensResult {
         try {
             const res = await sendMessage('query_json', { table_name: tableName, query });
             if (res.success && !res.is_json) {
-                // Regular table result
                 setQueryResult(res);
             }
             return res;
@@ -240,19 +256,36 @@ export function useDataLens(): UseDataLensResult {
         }
     }, [sendMessage]);
 
+    const selectTableData = useCallback(async (tableName: string) => {
+        try {
+            const res = await sendMessage('run_sql', { query: `SELECT * FROM "${tableName}" LIMIT 1000` });
+            if (res.success) {
+                setTableResult(res);
+            } else {
+                setError(res.error);
+            }
+            return res;
+        } catch (err: any) {
+            setError(err.message);
+        }
+    }, [sendMessage]);
+
     return {
         isReady,
         isProcessing,
         error,
         schemas,
         queryResult,
+        tableResult,
         loadFile,
         runSql,
         runPython,
         refreshSchemas,
         deleteTable,
+        clearAllTables,
         clearQueryResult,
         getRawJson,
-        queryJson
+        queryJson,
+        selectTableData
     };
 }

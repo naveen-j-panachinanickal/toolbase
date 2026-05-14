@@ -2,7 +2,8 @@ import pandas as pd
 import io
 import json
 from .state import DATA_STORE, JSON_STORE
-from .utils import sanitize_table_name
+from .utils import sanitize_table_name, df_to_js
+import numpy as np
 
 def load_file(data):
     try:
@@ -29,38 +30,50 @@ def load_file(data):
         elif file_type == "json":
             # Parse JSON to handle nested structures
             json_data = json.loads(file_bytes.decode("utf-8"))
-
-            # Store raw JSON for the JSON viewer
             JSON_STORE[base_table_name] = json_data
 
-            # Handle different JSON structures - always create a single table
-            if isinstance(json_data, list):
-                # Array of objects - flatten it
+            if isinstance(json_data, (list, dict)):
+                # 1. Initial Flatten (objects)
                 df = pd.json_normalize(json_data, sep="_")
+                
+                # 2. Aggressive Flatten (Arrays of Objects)
+                # Look for columns that contain lists of dicts
+                list_cols = []
+                for col in df.columns:
+                    if df[col].apply(lambda x: isinstance(x, list) and len(x) > 0).any():
+                        # Peek at first non-null list item
+                        sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else []
+                        if isinstance(sample, list) and len(sample) > 0 and isinstance(sample[0], dict):
+                            list_cols.append(col)
+                
+                if list_cols:
+                    # Explode the primary (first) array column
+                    primary_col = list_cols[0] 
+                    df = df.explode(primary_col)
+                    
+                    # Normalize the nested objects in the exploded column
+                    mask = df[primary_col].notnull()
+                    if mask.any():
+                        nested_df = pd.json_normalize(df.loc[mask, primary_col], sep="_")
+                        nested_df.index = df[mask].index
+                        # Add prefix to exploded columns to show their source
+                        nested_df.columns = [f"{primary_col}_{c}" for c in nested_df.columns]
+                        df = df.drop(columns=[primary_col]).join(nested_df)
+                
+                # 3. Handle duplicate column names after all flattening
+                new_cols = []
+                counts = {}
+                for col in df.columns:
+                    if col in counts:
+                        counts[col] += 1
+                        new_cols.append(f"{col}_{counts[col]}")
+                    else:
+                        counts[col] = 0
+                        new_cols.append(col)
+                df.columns = new_cols
+                
                 DATA_STORE[base_table_name] = df
                 tables_created.append(base_table_name)
-            elif isinstance(json_data, dict):
-                # Object with nested arrays - find the main data array
-                main_array_key = None
-                main_array_data = None
-
-                # Look for the largest array in the root object
-                for key, value in json_data.items():
-                    if isinstance(value, list) and len(value) > 0:
-                        if main_array_data is None or len(value) > len(main_array_data):
-                            main_array_key = key
-                            main_array_data = value
-
-                if main_array_data and len(main_array_data) > 0:
-                    # Flatten the main array with nested objects into a single table
-                    df = pd.json_normalize(main_array_data, sep="_")
-                    DATA_STORE[base_table_name] = df
-                    tables_created.append(base_table_name)
-                else:
-                    # Single object - convert to single row dataframe
-                    df = pd.json_normalize([json_data], sep="_")
-                    DATA_STORE[base_table_name] = df
-                    tables_created.append(base_table_name)
             else:
                 return {"success": False, "error": "Unsupported JSON structure"}
 

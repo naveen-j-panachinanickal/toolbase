@@ -2,15 +2,16 @@
 
 import React, { useState } from "react";
 import { X, Plus } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface TagInputProps {
-    label: string;
+    label: React.ReactNode;
     values: string[];
     onChange: (values: string[]) => void;
     placeholder?: string;
     color?: string;
+    onClear?: () => void;
 }
 
 import { Label } from "@/components/ui/Label";
@@ -21,6 +22,7 @@ export const TagInput: React.FC<TagInputProps> = ({
     onChange,
     placeholder = "Add...",
     color = "blue",
+    onClear,
 }) => {
     const [inputValue, setInputValue] = useState("");
 
@@ -43,11 +45,21 @@ export const TagInput: React.FC<TagInputProps> = ({
 
     return (
         <div className="space-y-3">
-            <Label>{label}</Label>
-            <div className="flex flex-wrap gap-2 p-2.5 glass-input min-h-[52px]">
+            <div className="flex items-center justify-between">
+                <Label>{label}</Label>
+                {onClear && values.length > 0 && (
+                    <button
+                        onClick={onClear}
+                        className="text-[10px] font-bold text-(--text-muted) hover:text-red-500 transition-colors uppercase tracking-wider haptic-click"
+                    >
+                        Clear
+                    </button>
+                )}
+            </div>
+            <div className="flex flex-wrap gap-2 p-2.5 glass-input min-h-[52px] max-h-[160px] overflow-y-auto scrollbar-thin">
                 <AnimatePresence mode="popLayout">
                     {values.map((v, i) => (
-                        <motion.span
+                        <m.span
                             key={v}
                             initial={{ opacity: 0, scale: 0.8, y: 5 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -64,7 +76,7 @@ export const TagInput: React.FC<TagInputProps> = ({
                             >
                                 <X className="w-3 h-3" />
                             </button>
-                        </motion.span>
+                        </m.span>
                     ))}
                 </AnimatePresence>
                 <div className="flex-1 min-w-[120px] flex items-center">

@@ -1,5 +1,6 @@
 import pandas as pd
 from .state import DATA_STORE
+from .utils import df_to_js
 
 
 def run_python(data):
@@ -24,18 +25,32 @@ def run_python(data):
 
         result = local_env.get("result")
 
+        # Smart Fallback: If 'result' is not set, try to find a newly created DataFrame
+        if result is None:
+            # Common names first
+            for candidate in ["df", "res", "output", "out"]:
+                if candidate in local_env and isinstance(local_env[candidate], pd.DataFrame):
+                    result = local_env[candidate]
+                    break
+            
+            # If still None, look for ANY DataFrame other than the ones in DATA_STORE
+            if result is None:
+                for key, val in local_env.items():
+                    if key not in DATA_STORE and key not in ["pd", "DATA_STORE", "result"] and isinstance(val, pd.DataFrame):
+                        result = val
+                        break
+
         if result is None:
             return {
                 "success": True,
-                "message": "Code executed but 'result' variable was None or not set.",
+                "message": "Code executed but the 'result' variable was not set. \n\nTip: Assign your final DataFrame to 'result' (e.g., result = df) to display it in the grid.",
             }
 
         if isinstance(result, pd.DataFrame):
+            js_result = df_to_js(result)
             return {
                 "success": True,
-                "columns": list(result.columns),
-                "data": result.values.tolist(),
-                "rowCount": len(result),
+                **js_result
             }
         elif isinstance(result, (list, dict, str, int, float, bool)):
             # Wrap scalar/simple results

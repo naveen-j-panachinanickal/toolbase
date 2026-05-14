@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Upload } from 'lucide-react';
+import { Upload, FileUp } from 'lucide-react';
 
 interface FileDropZoneProps {
     onFileSelected: (file: File | null) => void;
@@ -62,12 +62,12 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
     return (
         <div
             className={cn(
-                'relative overflow-hidden transition-all duration-300 cursor-pointer',
-                'border-2 border-dashed backdrop-blur-sm rounded-2xl',
-                'bg-linear-to-br from-white/95 to-gray-50/95',
+                'relative overflow-hidden transition-all duration-500 cursor-pointer',
+                'border-2 border-dashed rounded-3xl backdrop-blur-md',
+                'bg-gradient-to-br from-white/90 via-gray-50/50 to-white/90',
                 isDragOver
-                    ? 'border-primary/60 bg-primary/5 scale-[1.01] shadow-lg shadow-primary/10'
-                    : 'border-gray-300/80 hover:border-primary/40 hover:bg-white/80 hover:shadow-xl',
+                    ? 'border-purple-500/60 bg-purple-50/30 scale-[1.02] shadow-2xl shadow-purple-500/20'
+                    : 'border-gray-300/60 hover:border-purple-400/50 hover:bg-white/70 hover:shadow-xl hover:shadow-gray-200/50',
                 disabled && 'opacity-50 cursor-not-allowed',
                 className
             )}
@@ -76,44 +76,96 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
             onDrop={handleDrop}
             onClick={handleClick}
         >
-            <div className="relative flex flex-col items-center justify-center py-12 px-4 text-center">
-                {isDragOver && (
-                    <div className="absolute inset-0 bg-linear-to-r from-primary/5 via-transparent to-primary/5 animate-pulse" />
-                )}
+            {/* Animated gradient border effect */}
+            <div className={cn(
+                "absolute inset-0 transition-opacity duration-500",
+                isDragOver ? "opacity-100" : "opacity-0"
+            )}>
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-violet-500/10 to-purple-500/10 animate-gradient" />
+            </div>
 
+            {/* Floating particles animation on drag over */}
+            {isDragOver && (
+                <>
+                    <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-purple-400/40 rounded-full animate-ping" />
+                    <div className="absolute top-3/4 right-1/4 w-3 h-3 bg-violet-400/30 rounded-full animate-ping delay-100" />
+                    <div className="absolute bottom-1/4 left-2/3 w-2 h-2 bg-fuchsia-400/40 rounded-full animate-ping delay-200" />
+                </>
+            )}
+
+            <div className="relative flex flex-col items-center justify-center py-14 px-6 text-center">
+                {/* Icon with animated container */}
                 <div
                     className={cn(
-                        'relative mb-4 rounded-2xl p-4 transition-all duration-300',
-                        'bg-linear-to-br from-white to-gray-50 shadow-lg',
+                        "relative mb-6 rounded-3xl p-5 transition-all duration-500 ease-out",
+                        "bg-gradient-to-br from-white to-gray-50/80",
+                        "shadow-lg backdrop-blur-sm",
                         isDragOver
-                            ? 'scale-110 shadow-xl shadow-primary/20 ring-2 ring-primary/20'
-                            : 'shadow-md'
+                            ? "scale-110 rotate-3 shadow-2xl shadow-purple-500/25 ring-4 ring-purple-200/50"
+                            : "shadow-md group-hover:shadow-xl"
                     )}
                 >
                     <div
                         className={cn(
-                            'rounded-xl p-3 transition-colors duration-300',
+                            "rounded-2xl p-4 transition-all duration-500",
                             isDragOver
-                                ? 'bg-linear-to-br from-primary/20 to-primary/10'
-                                : 'bg-linear-to-br from-gray-100 to-gray-50'
+                                ? "bg-gradient-to-br from-purple-500/20 via-violet-500/10 to-purple-500/20"
+                                : "bg-gradient-to-br from-gray-100 to-gray-50"
                         )}
                     >
-                        <Upload
-                            className={cn(
-                                'h-6 w-6 transition-all duration-300',
-                                isDragOver ? 'text-primary scale-110' : 'text-gray-600'
+                        <div className="relative">
+                            <Upload
+                                className={cn(
+                                    "h-8 w-8 transition-all duration-500",
+                                    isDragOver
+                                        ? "text-purple-600 scale-125 animate-bounce"
+                                        : "text-gray-600 group-hover:text-gray-800"
+                                )}
+                            />
+                            {isDragOver && (
+                                <FileUp
+                                    className="h-4 w-4 text-purple-400 absolute -top-1 -right-1 animate-pulse"
+                                />
                             )}
-                        />
+                        </div>
                     </div>
                 </div>
 
-                <div className="relative space-y-2">
-                    <h4 className="text-lg font-semibold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                        {isDragOver ? 'Drop your file here' : 'Drag & drop a file'}
+                {/* Text content */}
+                <div className="relative space-y-2.5">
+                    <h4
+                        className={cn(
+                            "text-xl font-bold transition-all duration-300",
+                            "bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent",
+                            isDragOver && "from-purple-600 via-violet-600 to-purple-600"
+                        )}
+                    >
+                        {isDragOver ? (
+                            <span className="flex items-center gap-2">
+                                <span className="animate-pulse">Drop your file</span>
+                                <span className="text-purple-500">here</span>
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-2">
+                                Drag & drop your file
+                                <span className="text-gray-400 font-normal">or</span>
+                            </span>
+                        )}
                     </h4>
-                    <p className="text-sm text-gray-600">or click to browse</p>
+                    <p className={cn(
+                        "text-sm transition-all duration-300",
+                        isDragOver ? "text-purple-600 font-medium" : "text-gray-500"
+                    )}>
+                        {isDragOver ? "Release to upload" : "click to browse"}
+                    </p>
                     {accept !== '*' && (
-                        <p className="text-xs text-gray-500">Accepts: {accept}</p>
+                        <div className="flex items-center justify-center gap-1.5 mt-3">
+                            <div className="h-px w-8 bg-gray-200" />
+                            <p className="text-xs text-gray-400 bg-gray-100/80 px-3 py-1.5 rounded-full">
+                                {accept}
+                            </p>
+                            <div className="h-px w-8 bg-gray-200" />
+                        </div>
                     )}
                 </div>
 

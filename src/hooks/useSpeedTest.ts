@@ -18,6 +18,7 @@ export function useSpeedTest() {
 
     // Actually, storing live ephemeral speed for current stage
     const [currentSpeed, setCurrentSpeed] = useState<number>(0);
+    const [speedHistory, setSpeedHistory] = useState<number[]>([]);
 
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -28,6 +29,7 @@ export function useSpeedTest() {
         setError(null);
         setResults({ ping: 0, download: 0, upload: 0 });
         setCurrentSpeed(0);
+        setSpeedHistory([]);
 
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
@@ -43,19 +45,23 @@ export function useSpeedTest() {
             setCurrentSpeed(0);
             const download = await measureDownload(signal, (mbps) => {
                 setCurrentSpeed(mbps);
+                setSpeedHistory(prev => [...prev.slice(-11), mbps]);
             });
             if (signal.aborted) return;
             setResults(prev => ({ ...prev, download }));
             setCurrentSpeed(0);
+            setSpeedHistory([]);
 
             // 3. Upload
             setStatus('upload');
             const upload = await measureUpload(signal, (mbps) => {
                 setCurrentSpeed(mbps);
+                setSpeedHistory(prev => [...prev.slice(-11), mbps]);
             });
             if (signal.aborted) return;
             setResults(prev => ({ ...prev, upload }));
             setCurrentSpeed(0);
+            setSpeedHistory([]);
 
             setStatus('complete');
         } catch (e: any) {
@@ -83,5 +89,6 @@ export function useSpeedTest() {
         error,
         startTest,
         stopTest,
+        speedHistory,
     };
 }

@@ -1,6 +1,6 @@
 
 import { toPng, toSvg, toBlob } from 'html-to-image';
-import { jsPDF } from 'jspdf';
+// jspdf is imported dynamically in exportAsPdf to reduce initial bundle size
 
 // Utility to download a blob as a file
 const downloadFile = (href: string, name: string) => {
@@ -91,6 +91,7 @@ export const exportAsPdf = async (element: HTMLElement, fileName: string = 'diag
             onClone: cleanupClone
         } as any);
 
+        const { jsPDF } = await import('jspdf');
         const pdf = new jsPDF({
             orientation: 'landscape',
         });

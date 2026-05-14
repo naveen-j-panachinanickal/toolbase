@@ -1,7 +1,16 @@
 'use client';
-
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+/**
+ * RearrangePdf — unified component for the direct tool page and the pipeline INP.
+ *
+ * Standalone mode  (direct tool):   <RearrangePdf />
+ *   → Reorder, rotate, delete pages → apply changes → download
+ *
+ * Interaction mode (pipeline INP):  <RearrangePdf files={[pdf]} onConfirm={fn} onCancel={fn} />
+ *   → Pre-seeded with upstream file, same UI
+ *   → Confirm saves pageOrder+operations as config (no execution here)
+ */
+import React, { useState, useEffect } from 'react';
+import { m, AnimatePresence } from 'framer-motion';
 import { FileUploader } from '@/components/ui/FileUploader';
 import { Button } from '@/components/ui/Button';
 import {
@@ -10,6 +19,7 @@ import {
     RotateCw,
     Trash2,
     CheckCircle,
+    CheckCheck,
     Undo2,
     ArrowUpDown,
     X,
@@ -20,6 +30,9 @@ import {
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { rearrangePdf, getPdfPageCount, renderPdfPageToImage, PageOperation } from '@/lib/pdf-actions';
+import type { TIPInteractionProps } from '@/tip/protocol';
+
+export type RearrangePdfProps = Partial<TIPInteractionProps>;
 
 interface PageItem {
     id: string;
@@ -30,8 +43,16 @@ interface PageItem {
     deleted: boolean;
 }
 
-export default function RearrangePdf() {
-    const [file, setFile] = useState<File | null>(null);
+export default function RearrangePdf({
+    files: seedFiles,
+    config,
+    onConfirm,
+    onCancel,
+}: RearrangePdfProps = {}) {
+    /**true when used inside the pipeline InteractionModal */
+    const isInteractionMode = typeof onConfirm === 'function';
+
+    const [file, setFile] = useState<File | null>(seedFiles?.[0] ?? null);
     const [pages, setPages] = useState<PageItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -39,52 +60,74 @@ export default function RearrangePdf() {
     const [loadingThumbnails, setLoadingThumbnails] = useState(false);
     const [previewPageIndex, setPreviewPageIndex] = useState<number | null>(null);
 
-    const handleFileSelected = async (files: File[]) => {
-        if (files.length > 0) {
-            const selectedFile = files[0];
-            setFile(selectedFile);
-            setResultPdfUrl(null);
-            setIsLoading(true);
-            setLoadingThumbnails(true);
+    // ── Load the PDF whenever file changes (covers seedFiles pre-seed and user picks) ──
+    const loadFile = async (selectedFile: File) => {
+        setResultPdfUrl(null);
+        setIsLoading(true);
+        setLoadingThumbnails(true);
+        try {
+            const pageCount = await getPdfPageCount(selectedFile);
 
-            try {
-                const pageCount = await getPdfPageCount(selectedFile);
-                const pageItems: PageItem[] = [];
+            let initialOrder = Array.from({ length: pageCount }, (_, i) => i);
+            let savedOperations: PageOperation[] = [];
 
-                // Initialize pages
-                for (let i = 0; i < pageCount; i++) {
-                    pageItems.push({
-                        id: `page-${i}`,
-                        index: i,
-                        originalIndex: i,
-                        thumbnail: null,
-                        rotation: 0,
-                        deleted: false,
-                    });
-                }
-
-                setPages(pageItems);
-
-                // Load thumbnails asynchronously
-                for (let i = 0; i < pageCount; i++) {
-                    try {
-                        const thumbnail = await renderPdfPageToImage(selectedFile, i, 1.5);
-                        setPages(prev => prev.map(p =>
-                            p.originalIndex === i ? { ...p, thumbnail } : p
-                        ));
-                    } catch (error) {
-                        console.error(`Failed to render page ${i}:`, error);
-                    }
-                }
-
-                setLoadingThumbnails(false);
-            } catch (error) {
-                console.error('Error loading PDF:', error);
-                alert('Failed to load PDF: ' + (error as Error).message);
-            } finally {
-                setIsLoading(false);
+            if (config && config.pageOrder) {
+                try { initialOrder = JSON.parse(config.pageOrder as string); } catch (e) { /* ignore */ }
             }
+            if (config && config.operations) {
+                try { savedOperations = JSON.parse(config.operations as string); } catch (e) { /* ignore */ }
+            }
+
+            const allPagesModel = Array.from({ length: pageCount }, (_, i) => {
+                const op = savedOperations.find(o => o.pageIndex === i);
+                return {
+                    id: `page-${i}`,
+                    index: i,
+                    originalIndex: i,
+                    thumbnail: null,
+                    rotation: op?.rotation ?? 0,
+                    deleted: op?.delete ?? false,
+                };
+            });
+
+            const orderedActivePages = initialOrder
+                .map(originalIdx => allPagesModel.find(p => p.originalIndex === originalIdx))
+                .filter(Boolean) as PageItem[];
+
+            const deletedPagesList = allPagesModel.filter(p => p.deleted);
+            const savedActiveIndices = new Set(initialOrder);
+            const missingActivePages = allPagesModel.filter(p => !p.deleted && !savedActiveIndices.has(p.originalIndex));
+
+            const pageItems = [...orderedActivePages, ...missingActivePages, ...deletedPagesList];
+
+            setPages(pageItems);
+            // Load thumbnails progressively
+            for (let i = 0; i < pageCount; i++) {
+                try {
+                    const thumbnail = await renderPdfPageToImage(selectedFile, i, 1.5);
+                    setPages(prev => prev.map(p => p.originalIndex === i ? { ...p, thumbnail } : p));
+                } catch (err) {
+                    console.error(`Failed to render page ${i}:`, err);
+                }
+            }
+            setLoadingThumbnails(false);
+        } catch (err) {
+            console.error('Error loading PDF:', err);
+        } finally {
+            setIsLoading(false);
         }
+    };
+
+    // Auto-load when file is set (covers seedFiles initial value)
+    useEffect(() => {
+        if (file) loadFile(file);
+        else { setPages([]); setResultPdfUrl(null); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [file]);
+
+    /** Called by the FileUploader drop zone in standalone mode */
+    const handleFileSelected = (files: File[]) => {
+        if (files.length > 0) setFile(files[0]);
     };
 
     const handleRotatePage = (pageId: string) => {
@@ -125,34 +168,46 @@ export default function RearrangePdf() {
         });
     };
 
+    // ── Standalone: execute rearrangement via pdf-lib ─────────────────────────
     const handleProcess = async () => {
         if (!file) return;
-
         setIsProcessing(true);
-
         try {
-            // Get the new order (excluding deleted pages)
             const activePages = pages.filter(p => !p.deleted);
             const newOrder = activePages.map(p => p.originalIndex);
-
-            // Prepare operations
             const operations: PageOperation[] = pages.map(p => ({
                 pageIndex: p.originalIndex,
                 rotation: p.rotation,
                 delete: p.deleted,
             }));
-
             const resultBytes = await rearrangePdf(file, newOrder, operations);
             const blob = new Blob([resultBytes as any], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-
-            setResultPdfUrl(url);
-        } catch (error) {
-            console.error('Error processing PDF:', error);
-            alert('Failed to process PDF: ' + (error as Error).message);
+            setResultPdfUrl(URL.createObjectURL(blob));
+        } catch (err) {
+            console.error('Error processing PDF:', err);
+            alert('Failed to process PDF: ' + (err as Error).message);
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    // ── Interaction: confirm page arrangement to the pipeline ──────────────────
+    const handleConfirm = () => {
+        if (!file || !onConfirm) return;
+        const activePages = pages.filter(p => !p.deleted);
+        const newOrder = activePages.map(p => p.originalIndex);
+        const operations: PageOperation[] = pages.map(p => ({
+            pageIndex: p.originalIndex,
+            rotation: p.rotation,
+            delete: p.deleted,
+        }));
+        onConfirm({
+            files: [file],
+            config: {
+                pageOrder: JSON.stringify(newOrder),
+                operations: JSON.stringify(operations),
+            },
+        });
     };
 
     const activePages = pages.filter(p => !p.deleted);
@@ -167,7 +222,7 @@ export default function RearrangePdf() {
         <div className="w-full max-w-7xl mx-auto space-y-8">
             <AnimatePresence mode="wait">
                 {!file ? (
-                    <motion.div
+                    <m.div
                         key="upload"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -176,7 +231,7 @@ export default function RearrangePdf() {
                         <Card className="p-8">
                             <div className="text-center mb-8">
                                 <h2 className="text-2xl font-semibold mb-2">Rearrange PDF Pages</h2>
-                                <p className="text-gray-500">Reorder, rotate, and delete pages from your PDF.</p>
+                                <p className="text-text-muted">Reorder, rotate, and delete pages from your PDF.</p>
                             </div>
                             <FileUploader
                                 onFilesSelected={handleFileSelected}
@@ -185,9 +240,9 @@ export default function RearrangePdf() {
                                 className="max-w-2xl mx-auto"
                             />
                         </Card>
-                    </motion.div>
+                    </m.div>
                 ) : (
-                    <motion.div
+                    <m.div
                         key="workspace"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -201,8 +256,8 @@ export default function RearrangePdf() {
                                         <ArrowUpDown className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="font-medium text-gray-900">{file.name}</h3>
-                                        <p className="text-sm text-gray-500">
+                                        <h3 className="font-medium text-text-primary">{file.name}</h3>
+                                        <p className="text-sm text-text-muted">
                                             {activePages.length} page{activePages.length !== 1 ? 's' : ''}
                                             {deletedPages.length > 0 && ` • ${deletedPages.length} deleted`}
                                         </p>
@@ -215,10 +270,20 @@ export default function RearrangePdf() {
                                             Reset All
                                         </Button>
                                     )}
-                                    {!resultPdfUrl && (
+                                    {!resultPdfUrl && !isInteractionMode && (
                                         <Button variant="ghost" onClick={() => setFile(null)}>
                                             Change File
                                         </Button>
+                                    )}
+                                    {/* Mode-specific action */}
+                                    {isInteractionMode && (
+                                        <>
+                                            <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+                                            <Button onClick={handleConfirm} disabled={activePages.length === 0} className="gap-2">
+                                                <CheckCheck className="w-4 h-4" />
+                                                Confirm Arrangement ({activePages.length} pages)
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -226,17 +291,17 @@ export default function RearrangePdf() {
 
                         {/* Result Section */}
                         {resultPdfUrl && (
-                            <motion.div
+                            <m.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                             >
-                                <Card className="p-8 bg-green-50/50 border-green-100">
+                                <Card className="p-8 bg-green-500/5/50 border-green-100">
                                     <div className="flex flex-col items-center text-center">
-                                        <div className="h-16 w-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                                        <div className="h-16 w-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-4">
                                             <CheckCircle className="w-8 h-8" />
                                         </div>
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">PDF Rearranged!</h3>
-                                        <p className="text-gray-600 mb-6">Your PDF has been successfully processed.</p>
+                                        <h3 className="text-2xl font-bold text-text-primary mb-2">PDF Rearranged!</h3>
+                                        <p className="text-text-muted mb-6">Your PDF has been successfully processed.</p>
 
                                         <div className="flex gap-4">
                                             <Button
@@ -259,7 +324,7 @@ export default function RearrangePdf() {
                                         </div>
                                     </div>
                                 </Card>
-                            </motion.div>
+                            </m.div>
                         )}
 
                         {/* Pages Grid */}
@@ -268,20 +333,27 @@ export default function RearrangePdf() {
                                 <Card className="p-6">
                                     <div className="flex items-center justify-between mb-6">
                                         <div>
-                                            <h4 className="font-semibold text-gray-900">Pages</h4>
-                                            <p className="text-sm text-gray-500">Click and drag pages to reorder</p>
+                                            <h4 className="font-semibold text-text-primary">Pages</h4>
+                                            <p className="text-sm text-text-muted">
+                                                {isInteractionMode
+                                                    ? 'Drag pages to reorder, rotate, or delete.'
+                                                    : 'Click and drag pages to reorder'}
+                                            </p>
                                         </div>
-                                        <Button
-                                            onClick={handleProcess}
-                                            disabled={isProcessing || !hasChanges || activePages.length === 0}
-                                            isLoading={isProcessing}
-                                        >
-                                            {isProcessing ? 'Processing...' : 'Apply Changes'}
-                                        </Button>
+                                        {/* Standalone Apply Changes button */}
+                                        {!isInteractionMode && (
+                                            <Button
+                                                onClick={handleProcess}
+                                                disabled={isProcessing || !hasChanges || activePages.length === 0}
+                                                isLoading={isProcessing}
+                                            >
+                                                {isProcessing ? 'Processing...' : 'Apply Changes'}
+                                            </Button>
+                                        )}
                                     </div>
 
                                     {loadingThumbnails && (
-                                        <div className="text-center py-8 text-gray-500">
+                                        <div className="text-center py-8 text-text-muted">
                                             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block mr-2" />
                                             Loading page previews...
                                         </div>
@@ -296,7 +368,7 @@ export default function RearrangePdf() {
                                     />
 
                                     {activePages.length === 0 && !loadingThumbnails && (
-                                        <div className="text-center py-12 text-gray-400">
+                                        <div className="text-center py-12 text-text-faint">
                                             <p>All pages have been deleted. Restore some pages to continue.</p>
                                         </div>
                                     )}
@@ -305,7 +377,7 @@ export default function RearrangePdf() {
                                 {/* Deleted Pages */}
                                 {deletedPages.length > 0 && (
                                     <Card className="p-6 bg-red-50/30 border-red-100">
-                                        <h4 className="font-semibold text-gray-900 mb-4">Deleted Pages</h4>
+                                        <h4 className="font-semibold text-text-primary mb-4">Deleted Pages</h4>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                             {deletedPages.map((page) => (
                                                 <div key={page.id} className="relative opacity-60">
@@ -319,7 +391,7 @@ export default function RearrangePdf() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="absolute inset-0 m-auto w-fit h-fit bg-white"
+                                                        className="absolute inset-0 m-auto w-fit h-fit bg-surface-elevated"
                                                         onClick={() => handleRestorePage(page.id)}
                                                     >
                                                         <Undo2 className="w-3 h-3 mr-1" />
@@ -332,7 +404,7 @@ export default function RearrangePdf() {
                                 )}
                             </>
                         )}
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
 
@@ -407,7 +479,7 @@ const DraggableGrid = ({ pages, onReorder, onRotate, onDelete, onPreview }: Drag
     };
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {pages.map((page, index) => (
                 <div
                     key={page.id}
@@ -418,11 +490,22 @@ const DraggableGrid = ({ pages, onReorder, onRotate, onDelete, onPreview }: Drag
                     onDragEnd={handleDragEnd}
                     onDrop={handleDrop}
                     className={cn(
-                        "transition-all duration-200 relative",
-                        draggedIndex === index && "opacity-30 scale-95",
-                        overIndex === index && draggedIndex !== null && draggedIndex !== index && "ring-4 ring-primary/50 scale-105"
+                        "relative group perspective-1000",
+                        "transition-all duration-300 ease-out",
+                        "touch-manipulation"
                     )}
+                    style={{
+                        transform: draggedIndex === index
+                            ? 'scale(0.95) rotate(2deg)'
+                            : overIndex === index && draggedIndex !== null && draggedIndex !== index
+                                ? 'scale(1.05) rotate(-1deg)'
+                                : 'scale(1) rotate(0deg)'
+                    }}
                 >
+                    {/* Drop zone indicator */}
+                    {overIndex === index && draggedIndex !== null && draggedIndex !== index && (
+                        <div className="absolute -inset-1 bg-gradient-to-r from-purple-400 via-violet-400 to-purple-400 rounded-2xl opacity-60 animate-pulse blur-sm -z-10" />
+                    )}
                     <PageCard
                         page={page}
                         onRotate={() => onRotate(page.id)}
@@ -449,42 +532,86 @@ const PageCard = ({ page, onRotate, onDelete, onPreview, isDeleted = false, isDr
     return (
         <div
             className={cn(
-                "group relative bg-white rounded-xl border-2 transition-all duration-200 overflow-hidden select-none",
+                "group relative bg-surface-elevated rounded-2xl overflow-hidden select-none touch-none",
+                "transition-all duration-300 ease-out",
+                "border-2",
                 isDeleted
-                    ? "border-red-200 opacity-50"
-                    : "border-gray-200 hover:border-primary/40 hover:shadow-lg",
-                !isDeleted && "cursor-move active:cursor-grabbing",
-                isDragging && "shadow-2xl"
+                    ? "border-red-200 opacity-50 grayscale"
+                    : cn(
+                        "border-border-medium/80",
+                        "hover:border-purple-300 hover:shadow-xl hover:shadow-purple-500/10",
+                        "active:shadow-2xl active:scale-105"
+                    ),
+                !isDeleted && "cursor-grab active:cursor-grabbing",
+                isDragging && "shadow-2xl shadow-purple-500/30 ring-4 ring-purple-400/50 z-50"
             )}
         >
-            {/* Page Number Badge */}
-            <div className="absolute top-2 right-2 z-10 pointer-events-none">
-                <div className="bg-black/70 text-white text-xs font-bold px-2 py-1 rounded-md">
+            {/* Gradient overlay on hover */}
+            {!isDeleted && (
+                <div className="absolute inset-0 bg-gradient-to-t from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-0" />
+            )}
+
+            {/* Page Number Badge with gradient */}
+            <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
+                <div className={cn(
+                    "px-2.5 py-1.5 rounded-xl font-bold text-xs shadow-lg backdrop-blur-sm",
+                    "bg-gradient-to-br from-gray-900/90 to-gray-800/90 text-background",
+                    "transition-transform duration-300 group-hover:scale-110"
+                )}>
                     {page.originalIndex + 1}
                 </div>
             </div>
 
-            {/* Thumbnail */}
+            {/* Rotation indicator badge */}
+            {page.rotation !== 0 && !isDeleted && (
+                <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
+                    <div className="px-2 py-1 rounded-lg bg-purple-500/90 text-background text-[10px] font-semibold shadow-md backdrop-blur-sm flex items-center gap-1">
+                        <RotateCw className="w-3 h-3" />
+                        {page.rotation}°
+                    </div>
+                </div>
+            )}
+
+            {/* Thumbnail container with glass effect */}
             <div
-                className="aspect-[1/1.414] bg-gray-100 flex items-center justify-center overflow-hidden pointer-events-none"
+                className={cn(
+                    "aspect-[1/1.414] flex items-center justify-center overflow-hidden pointer-events-none relative",
+                    isDeleted ? "bg-red-50" : "bg-gradient-to-br from-gray-50 to-white"
+                )}
                 style={{ transform: `rotate(${page.rotation}deg)` }}
             >
+                {/* Inner shadow border */}
+                <div className="absolute inset-0 ring-1 ring-inset ring-gray-200/50 rounded-none" />
+
                 {page.thumbnail ? (
                     <img
                         src={page.thumbnail}
                         alt={`Page ${page.originalIndex + 1}`}
-                        className="w-full h-full object-contain"
+                        className={cn(
+                            "w-full h-full object-contain transition-transform duration-300",
+                            "group-hover:scale-105"
+                        )}
                         draggable={false}
                     />
                 ) : (
-                    <div className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-500 rounded-full animate-spin" />
+                        <span className="text-xs text-text-faint font-medium">Loading...</span>
+                    </div>
                 )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons with frosted glass background */}
             {!isDeleted && (
-                <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                    <div className="flex gap-2 justify-center">
+                <div className="absolute bottom-0 left-0 right-0 z-20">
+                    <div className={cn(
+                        "flex items-center justify-center gap-1.5 p-2.5",
+                        "bg-gradient-to-t from-black/80 via-black/60 to-transparent",
+                        "backdrop-blur-md",
+                        "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0",
+                        "transition-all duration-300 ease-out",
+                        "pointer-events-none group-hover:pointer-events-auto"
+                    )}>
                         {onPreview && (
                             <button
                                 onClick={(e) => {
@@ -494,10 +621,15 @@ const PageCard = ({ page, onRotate, onDelete, onPreview, isDeleted = false, isDr
                                 }}
                                 draggable={false}
                                 onDragStart={(e) => e.preventDefault()}
-                                className="p-2 bg-white/90 hover:bg-blue-50 rounded-lg transition-colors pointer-events-auto group/preview"
+                                className={cn(
+                                    "p-2.5 rounded-xl transition-all duration-200",
+                                    "bg-surface-elevated/90 hover:bg-blue-500 hover:text-background hover:shadow-lg hover:shadow-blue-500/30",
+                                    "hover:scale-110 active:scale-95",
+                                    "pointer-events-auto"
+                                )}
                                 title="Preview page"
                             >
-                                <Eye className="w-4 h-4 text-gray-700 group-hover/preview:text-blue-600" />
+                                <Eye className="w-4 h-4" />
                             </button>
                         )}
                         <button
@@ -508,10 +640,15 @@ const PageCard = ({ page, onRotate, onDelete, onPreview, isDeleted = false, isDr
                             }}
                             draggable={false}
                             onDragStart={(e) => e.preventDefault()}
-                            className="p-2 bg-white/90 hover:bg-white rounded-lg transition-colors pointer-events-auto"
+                            className={cn(
+                                "p-2.5 rounded-xl transition-all duration-200",
+                                "bg-surface-elevated/90 hover:bg-purple-500 hover:text-background hover:shadow-lg hover:shadow-purple-500/30",
+                                "hover:scale-110 active:scale-95",
+                                "pointer-events-auto"
+                            )}
                             title="Rotate 90°"
                         >
-                            <RotateCw className="w-4 h-4 text-gray-700" />
+                            <RotateCw className="w-4 h-4" />
                         </button>
                         <button
                             onClick={(e) => {
@@ -521,11 +658,26 @@ const PageCard = ({ page, onRotate, onDelete, onPreview, isDeleted = false, isDr
                             }}
                             draggable={false}
                             onDragStart={(e) => e.preventDefault()}
-                            className="p-2 bg-white/90 hover:bg-red-50 rounded-lg transition-colors group/delete pointer-events-auto"
+                            className={cn(
+                                "p-2.5 rounded-xl transition-all duration-200",
+                                "bg-surface-elevated/90 hover:bg-red-500 hover:text-background hover:shadow-lg hover:shadow-red-500/30",
+                                "hover:scale-110 active:scale-95",
+                                "pointer-events-auto"
+                            )}
                             title="Delete page"
                         >
-                            <Trash2 className="w-4 h-4 text-gray-700 group-hover/delete:text-red-600" />
+                            <Trash2 className="w-4 h-4" />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Drag handle indicator - subtle grip lines at top */}
+            {!isDeleted && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="flex flex-col gap-1">
+                        <div className="w-8 h-1 bg-border-medium rounded-full" />
+                        <div className="w-8 h-1 bg-border-medium rounded-full" />
                     </div>
                 </div>
             )}
@@ -602,7 +754,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
     };
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -612,28 +764,28 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
             {/* Close Button */}
             <button
                 onClick={onClose}
-                className="absolute top-4 right-4 z-10 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                className="absolute top-4 right-4 z-10 p-2 bg-surface-elevated/10 hover:bg-surface-elevated/20 rounded-full transition-colors"
                 title="Close (Esc)"
             >
-                <X className="w-6 h-6 text-white" />
+                <X className="w-6 h-6 text-background" />
             </button>
 
             {/* Page Info */}
-            <div className="absolute top-4 left-4 z-10 bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm">
+            <div className="absolute top-4 left-4 z-10 bg-black/50 text-background px-4 py-2 rounded-lg backdrop-blur-sm">
                 <p className="text-sm font-medium">
                     Page {page.originalIndex + 1} of {totalPages}
                 </p>
             </div>
 
             {/* Zoom Controls */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-black/50 text-background px-4 py-2 rounded-lg backdrop-blur-sm">
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         handleZoomOut();
                     }}
                     disabled={zoom <= MIN_ZOOM}
-                    className="p-2 hover:bg-white/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 hover:bg-surface-elevated/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Zoom Out (-)"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -646,7 +798,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                         e.stopPropagation();
                         handleResetZoom();
                     }}
-                    className="px-3 py-1 hover:bg-white/10 rounded transition-colors text-sm font-medium min-w-[60px]"
+                    className="px-3 py-1 hover:bg-surface-elevated/10 rounded transition-colors text-sm font-medium min-w-[60px]"
                     title="Reset Zoom (0)"
                 >
                     {Math.round(zoom * 100)}%
@@ -658,7 +810,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                         handleZoomIn();
                     }}
                     disabled={zoom >= MAX_ZOOM}
-                    className="p-2 hover:bg-white/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 hover:bg-surface-elevated/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Zoom In (+)"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -666,7 +818,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                     </svg>
                 </button>
 
-                <div className="ml-2 pl-2 border-l border-white/20 text-xs text-gray-300">
+                <div className="ml-2 pl-2 border-l border-white/20 text-xs text-text-muted">
                     Ctrl+Scroll to zoom
                 </div>
             </div>
@@ -678,10 +830,10 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                         e.stopPropagation();
                         onPrevious();
                     }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-surface-elevated/10 hover:bg-surface-elevated/20 rounded-full transition-colors"
                     title="Previous (←)"
                 >
-                    <ChevronLeft className="w-6 h-6 text-white" />
+                    <ChevronLeft className="w-6 h-6 text-background" />
                 </button>
             )}
 
@@ -691,10 +843,10 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                         e.stopPropagation();
                         onNext();
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 bg-surface-elevated/10 hover:bg-surface-elevated/20 rounded-full transition-colors"
                     title="Next (→)"
                 >
-                    <ChevronRight className="w-6 h-6 text-white" />
+                    <ChevronRight className="w-6 h-6 text-background" />
                 </button>
             )}
 
@@ -704,7 +856,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                 onClick={(e) => e.stopPropagation()}
                 onWheel={handleWheel}
             >
-                <motion.div
+                <m.div
                     key={`${page.id}-${zoom}`}
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -712,7 +864,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                     className="inline-block"
                 >
                     <div
-                        className="bg-white rounded-xl shadow-2xl overflow-hidden transition-transform duration-200"
+                        className="bg-surface-elevated rounded-xl shadow-2xl overflow-hidden transition-transform duration-200"
                         style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
                     >
                         {page.thumbnail ? (
@@ -728,7 +880,7 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                             />
                         ) : (
                             <div className="flex items-center justify-center p-20">
-                                <div className="w-12 h-12 border-4 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                <div className="w-12 h-12 border-4 border-border-medium border-t-transparent rounded-full animate-spin" />
                             </div>
                         )}
                     </div>
@@ -736,13 +888,13 @@ const PagePreviewModal = ({ page, currentIndex, totalPages, onClose, onNext, onP
                     {/* Rotation indicator */}
                     {page.rotation !== 0 && (
                         <div className="mt-4 text-center">
-                            <span className="inline-block bg-white/10 text-white text-sm px-3 py-1 rounded-full backdrop-blur-sm">
+                            <span className="inline-block bg-surface-elevated/10 text-background text-sm px-3 py-1 rounded-full backdrop-blur-sm">
                                 Rotated {page.rotation}°
                             </span>
                         </div>
                     )}
-                </motion.div>
+                </m.div>
             </div>
-        </motion.div>
+        </m.div>
     );
 };
